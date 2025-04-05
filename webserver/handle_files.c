@@ -5,22 +5,36 @@
 
 
 void index_folder (const char *query, const char *dir, char *output, size_t max_output) {
-    DIR *current_dir = opendir(*dir);
-    if (!dir) {
+    printf("\nDIR %s\nITEM %s\n", dir, query);
+    DIR *current_dir = opendir(dir);
+    if (!current_dir) {
     snprintf(output, max_output, "<h1>Error: Directory not found</h1>");
     return;
     }
     struct dirent *entry;
-    snprintf(output, max_output, "<h3>result: </h3><ul>");
+    snprintf(output, max_output, "<h2>result: </h2><ul>");
     while ((entry = readdir(current_dir))) {
-        if (strstr(entry->d_name, query)) {
-            strncat(output, "<li>", max_output - strlen(output) - 1);
+        if (strcmp(dir," movies") || strcmp(dir, "television")) {
+            if (strstr(entry->d_name, query)) {
+            printf("true\n");
+            strncat(output, "<li><a href=player/player.html?", max_output - strlen(output) - 1);
             strncat(output, entry->d_name, max_output - strlen(output) - 1);
-            strncat(output, "</li>", max_output - strlen(output) - 1);
+            strncat(output, ">", max_output - strlen(output) - 1);
+            strncat(output, entry->d_name, max_output - strlen(output) - 1);
+            strncat(output, "</a></li>", max_output - strlen(output) - 1);
+            }
+        } else {
+            if (strstr(entry->d_name, query)) {
+                printf("true\n");
+                strncat(output, "<li>", max_output - strlen(output) - 1);
+                strncat(output, entry->d_name, max_output - strlen(output) - 1);
+                strncat(output, "</li>", max_output - strlen(output) - 1);
+            }
         }
     }
     strncat(output, "</ul>", max_output - strlen(output) - 1);
-    closedir(dir);
+    printf("OUTPUT %s", output);
+    closedir(current_dir);
 }
 
 void capture_suggest(const char *suggestion) {
