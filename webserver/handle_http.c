@@ -4,18 +4,82 @@
 #include <errno.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <string.h>
 #include <pthread.h>
 #include "handle_files.c"
+#include "strops.c"
 
 #define PORT 8080
 #define RESERVED 8192
 #define WEBROOT "./main_pages"
- char movie[128];
-//for video streaming
-void send_video(int client_socket, const char *video_path, const char *header_buffer) {
+#define MAX_THREADS 20  // Maximum number of worker threads
 
+/*
+ALL MULTI-THREADING WAS DONE BY AI - CLAUDE 3.7
+
+I also had it refine my comments. Nothing else was touched.
+*/
+
+// Thread pool variables
+pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t queue_cond = PTHREAD_COND_INITIALIZER;
+int thread_count = 0;
+
+// Client request queue
+typedef struct client_request {
+    int client_socket;
+    struct client_request *next;
+} client_request_t;
+
+client_request_t *request_queue_head = NULL;
+client_request_t *request_queue_tail = NULL;
+
+// Add a client request to the queue
+void queue_add(int client_socket) {
+    client_request_t *request = malloc(sizeof(client_request_t));
+    request->client_socket = client_socket;
+    request->next = NULL;
+
+    pthread_mutex_lock(&queue_mutex);
+    
+    if (request_queue_tail == NULL) {
+        request_queue_head = request_queue_tail = request;
+    } else {
+        request_queue_tail->next = request;
+        request_queue_tail = request;
+    }
+    
+    pthread_cond_signal(&queue_cond);
+    pthread_mutex_unlock(&queue_mutex);
+}
+
+// Get the next client request from the queue
+int queue_get() {
+    int client_socket = -1;
+    
+    pthread_mutex_lock(&queue_mutex);
+    
+    while (request_queue_head == NULL) {
+        pthread_cond_wait(&queue_cond, &queue_mutex);
+    }
+    
+    client_request_t *request = request_queue_head;
+    client_socket = request->client_socket;
+    request_queue_head = request->next;
+    
+    if (request_queue_head == NULL) {
+        request_queue_tail = NULL;
+    }
+    
+    pthread_mutex_unlock(&queue_mutex);
+    free(request);
+    
+    return client_socket;
+}
+
+// For video streaming
+void send_video(int client_socket, const char *video_path, const char *header_buffer) {
     FILE *file = fopen(video_path, "rb");
+        
     printf("VIDEO %s\n", video_path);
     if (!file) {
         printf("\n###############\nno file at path\n###############\n");
@@ -23,7 +87,7 @@ void send_video(int client_socket, const char *video_path, const char *header_bu
                                 "Content-Type: text/html\r\n\r\n"
                                 "<html><body>video file does not exist<html><body>";
         write(client_socket, not_found, strlen(not_found));
-        return;  // Remove fclose(file) since file is NULL
+        return;
     }
 
     fseek(file, 0, SEEK_END);
@@ -100,10 +164,7 @@ void send_video(int client_socket, const char *video_path, const char *header_bu
     fclose(file);
 }
 
-
-
-
-//send response is for other functions. like indexing a file system.
+// Send response for other functions
 void send_response(int client_socket, const char *status, const char *content_type, const char *body) {
     char response[RESERVED];
     int length = snprintf(response, sizeof(response),
@@ -116,14 +177,14 @@ void send_response(int client_socket, const char *status, const char *content_ty
     send(client_socket, response, length, 0);
 }
 
-//sends html files
+// Sends HTML files
 void send_file(int client_socket, const char *filepath) {
     printf("SENDING FILE %s\n", filepath);
     FILE *file = fopen(filepath, "r");
     if (!file) {
         const char *not_found = "HTTP/1.1 404 Not Found\r\n"
-    "Content-Type: text/html\r\n\r\n"
-    "<html><body style='background-color:black;'><p style='color:white;'>Nice try bucko but that page doesnt exist</p><html><body>";
+        "Content-Type: text/html\r\n\r\n"
+        "<html><body style='background-color:black;'><p style='color:white;'>Nice try bucko but that page doesnt exist</p><html><body>";
         write(client_socket, not_found, strlen(not_found));
         return;
     }
@@ -132,7 +193,7 @@ void send_file(int client_socket, const char *filepath) {
     write(client_socket, header, strlen(header));
 
     char buffer[RESERVED];
-        printf("reached buffer\n", buffer);
+    printf("reached buffer\n");
     while (fgets(buffer, sizeof(buffer), file)) {
         write(client_socket, buffer, strlen(buffer));
     }
@@ -140,7 +201,7 @@ void send_file(int client_socket, const char *filepath) {
     fclose(file);
 }
 
-//preps the search query
+// Preps the search query
 void prep_file_index(int client_socket, char *query) {
     char output[RESERVED];
     printf("QUERY %s\n", query);
@@ -167,8 +228,8 @@ void prep_file_index(int client_socket, char *query) {
     send_response(client_socket, "200 OK", "text/html", output);
 }
 
-
-void prep_video(int client_socket, char *req) {
+// Function to prepare video player HTML
+void prep_video(int client_socket, char *req, char *movie_path, size_t path_size) {
     char output[RESERVED];
     printf("QUERY %s\n", req);
     char *folder = strstr(req, "/");
@@ -184,16 +245,24 @@ void prep_video(int client_socket, char *req) {
     }
     *folder_end = '\0'; // "player"
     printf("FOLDER %s\n", folder);
-    char *page = folder_end + 1; // "player.hmtl?video.mp4
+    char *page = folder_end + 1; // "player.html?video.mp4
     char *page_end = strstr(page, "?");
+    if (!page_end) {
+        send_response(client_socket, "400 Bad Request", "text/html","<h1>Invalid Query 005</h1>");
+        return;
+    }
     *page_end = '\0'; // "player.html"
     char *video = page_end + 1; // "video.mp4"
     printf("PAGE %s\n", page);
     printf("VIDEO %s\n", video);
-    snprintf(movie, sizeof(movie), "movies/%s", video);
-    printf("MOVIE %s\n", movie);
+    
+    // Store the movie path in the provided buffer
+    snprintf(movie_path, path_size, "movies/%s", video);
+    printf("MOVIE %s\n", movie_path);
+    
     char bo[RESERVED] =
-    "<html><body style='background-color:black;'><video width='1280' height='720' controls>\r\n"
+    "<html>\r\n<body style='background-color:black;'>\r\n<p><a href='/' style='color:powderblue;'><h2>Home</h2></a></p>\r\n"
+    "<video width='1280' height='720' controls>\r\n"
     "<source src='\r";
 
     char dy[RESERVED] = 
@@ -203,67 +272,170 @@ void prep_video(int client_socket, char *req) {
     strcat(bo, folder);
     strcat(bo, "/");
     strcat(bo, video);
-    strcat (bo, dy);
+    strcat(bo, dy);
     printf("BO-DY %s\n", bo);
     send_response(client_socket, "200 OK", "text/html", bo);
 }
 
+// Main client handling function
 void handle_client(int client_socket) {
     char buffer[RESERVED];
-    read(client_socket, buffer, sizeof(buffer) - 1);
+    char movie_path[612] = {0}; // Local buffer for movie path
+    
+    ssize_t bytes_read = read(client_socket, buffer, sizeof(buffer) - 1);
+    if (bytes_read <= 0) {
+        close(client_socket);
+        return;
+    }
+    
+    buffer[bytes_read] = '\0';
+    
     // Split into method and path
     char method[8], path[256];
     sscanf(buffer, "%s %s", method, path);
+    dcopy(path, movie_path);
     // Default to index
     if (strcmp(path, "/") == 0) {
         strcpy(path, "/index.html");
     }
+    
     printf("\nBUFFER %s\nMETHOD %s\nPATH %s\n", buffer, method, path);
-    if (strstr(buffer, "GET /search?movies")) {
+    
+    if (strstr(buffer, "GET /search?movies") || strstr(buffer, "GET /search?television")) {
         prep_file_index(client_socket, path);
     } else if (strstr(buffer, "GET /search?library")) {
         prep_file_index(client_socket, path);
+    } else if (strstr(buffer, "GET /television/") && !strstr(buffer, ".mp4")) {
+        char output[RESERVED];
+        char item[RESERVED];
+
+        psplit(path, "f", item, movie_path);
+        printf("item: %s movie path: %s path: %s \n", item, movie_path, path);
+        dstrip(path , "/", 1);
+        index_folder("", path, output, sizeof(output));
+        send_response(client_socket, "200 OK", "text/html", output);
     } else if (strstr(buffer, "GET /player/player.html")) {
-        prep_video(client_socket, path);
+        prep_video(client_socket, path, movie_path, sizeof(movie_path));
     } else if (strstr(buffer, ".mp4")) {
-        // Pass the entire header buffer to handle Range requests
-        send_video(client_socket, movie, buffer);
+ // For direct MP4 requests
+    char *video_filename = strrchr(path, '/'); // Get the filename portion after the last '/'
+    
+    if (video_filename) {
+        video_filename++; // Skip the '/' character
+        
+        // Safely construct the movie path
+        snprintf(movie_path, 2560, "movies/%s", video_filename);
+        printf("Direct video request - processing: %s\n", movie_path);
+        
+        // Check if the file exists before trying to send it
+        FILE *check = fopen(movie_path, "rb");
+        if (check) {
+            fclose(check);
+            send_video(client_socket, movie_path, buffer);
+        } else {
+            printf("File not found: %s\n", movie_path);
+            send_response(client_socket, "404 Not Found", "text/html", 
+                     "<html><body>Video file not found</body></html>");
+        }
+    } else {
+        send_response(client_socket, "400 Bad Request", "text/html", 
+                     "<html><body>Invalid video path format</body></html>");
+    }
     } else {
         char filepath[RESERVED];
         snprintf(filepath, sizeof(filepath), "%s%s", WEBROOT, path);
         send_file(client_socket, filepath);
     }
+    
     close(client_socket);
+}
+
+// Worker thread function
+void *worker_thread(void *arg) {
+    while (1) {
+        int client_socket = queue_get();
+        if (client_socket >= 0) {
+            handle_client(client_socket);
+        }
+    }
+    return NULL;
+}
+
+// Initialize the thread pool
+void init_thread_pool(int num_threads) {
+    pthread_t thread_id;
+    
+    for (int i = 0; i < num_threads; i++) {
+        if (pthread_create(&thread_id, NULL, worker_thread, NULL) != 0) {
+            perror("Failed to create thread");
+            exit(EXIT_FAILURE);
+        }
+        pthread_detach(thread_id);
+        thread_count++;
+    }
+    
+    printf("Thread pool initialized with %d threads\n", thread_count);
 }
 
 int main() {
     int server_fd, client_socket;
     struct sockaddr_in address;
     socklen_t addr_len = sizeof(address);
+    
+    // Create socket
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         perror("Socket failed");
         exit(EXIT_FAILURE);
     }
+    
+    // Set socket options to reuse address
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt failed");
+        exit(EXIT_FAILURE);
+    }
+    
+    // Configure address
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
+    // Bind socket
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         perror("Bind failed");
         exit(EXIT_FAILURE);
     }
+    
+    // Listen for connections
     if (listen(server_fd, 10) < 0) {
         perror("Listen failed");
         exit(EXIT_FAILURE);
     }
+    
     printf("Server started on port %d\n", PORT);
+    
+    // Initialize thread pool
+    init_thread_pool(MAX_THREADS);
+    
+    // Main accept loop
     while (1) {
-        client_socket = accept(server_fd, (struct sockkaddr*)&address, &addr_len);
-        printf("client connecting: %d\n", client_socket);
-        handle_client(client_socket);
-
+        client_socket = accept(server_fd, (struct sockaddr*)&address, &addr_len);
+        if (client_socket < 0) {
+            perror("Accept failed");
+            continue;
+        }
+        
+        printf("Client connecting: %d\n", client_socket);
+        
+        // Add client to the request queue
+        queue_add(client_socket);
     }
+    
+    // Clean up (although we never reach here in this example)
     close(server_fd);
+    pthread_mutex_destroy(&queue_mutex);
+    pthread_cond_destroy(&queue_cond);
+    
     return 0;
 }
