@@ -1,15 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-char* append(const char *string1, const char *string2) {
+char* append(const char *string1, const char *string2) { //idk if this works rn
     char *result = malloc(sizeof(string1) + sizeof(string2) + 1);
     int i = 0, j = 0;
-    while (i != '\0') {
+    while (string1[i] != '\0') {
         result[i] = string1[i];
         i += 1;
     }
     
-    while (j != '\0') {
+    while (string2[j] != '\0') {
         result[j + i] = string2[j];
         j += 1;
     }
@@ -131,7 +131,6 @@ int find(const char *string1, const char *string2) { //string 1 is source
         }
         j = 0;
     }
-    printf("\n!!notfound!!\n");
     return 0;
 }
 
@@ -152,7 +151,6 @@ int find_all(const char *string1, const char *string2) {
                     }
                 }
             }
-            printf("k %d\n", k);
             i = cache;
         }
         k = 0;
@@ -160,7 +158,7 @@ int find_all(const char *string1, const char *string2) {
     return l;
 }
 
-int find_pos(const char *string1, const char *string2, char *location) { //includes null terminator so you can loop thru the array easily
+int find_pos(const char *string1, const char *string2, int location[]) { //includes null terminator so you can loop thru the array easily
     int j = 0;
     int k = 0;
     for (int i = 0; string1[i] != '\0'; i++) {
@@ -188,14 +186,28 @@ int getlen(const char *string) { // does not include null terminator
     return i;
 }
 
+void simple_replace(char *string, const char *to_replace, const char *replacement) {
+    int i = 0;
+    while (string[i] != '\0') {
+        if (string[i] == *to_replace) {
+            string[i] = *replacement;
+        }
+        i++;
+        if (i > getlen(string)) {
+            break;
+        }
+    }
+}
+
 void replace(char *string, const char *to_replace, const char *replacement) {
-    char pos[sizeof(string) + 1];
-    char cache[sizeof(string) + 1];
+    char pos[getlen(string) + 1];
+    char cache[getlen(string) + 1];
     int i = 0;
     while (string[i] != '\0') {
         cache[i] = string[i];
         i++;
     }
+    cache[i] = '\0';
     if (find_pos(string, to_replace, pos)) {
         for (i = 0; pos[i] != '\0'; i++) {
             string[pos[i]] = replacement[i];
@@ -208,6 +220,22 @@ void replace(char *string, const char *to_replace, const char *replacement) {
                 string[i] = '\0';
                 break;
             }
+        }
+    }
+}
+void replace_all(char *string, const char *to_replace, const char *replacement) {
+    int i = 0;
+    while (string[i] != '\0') { //turn into char* so it can return
+        simple_replace(string, to_replace, replacement);
+        if (!find(string, to_replace)) break;
+        i++;
+    }
+}
+
+void replace_pos(char *string, const char to_replace, const char replacement, const int pos[], int increment) {
+    for (pos[increment]; string[pos[increment]] != '\0'; increment++) {
+        if (string[pos[increment]] == to_replace) {
+            string[pos[increment]] = to_replace;
         }
     }
 }
