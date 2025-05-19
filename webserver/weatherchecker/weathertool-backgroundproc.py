@@ -105,8 +105,8 @@ def webpage_update():
 				if "no properties" in properties:
 					properties = "no properties"
 				try:
-					if f"{headline.replace(' ', '_')}.html" in os.listdir():
-						continue
+					
+
 					with open(f"{headline.replace(' ', '_')}.html", "a") as file:
 						file.write(f"<h1>WEATHER ALERT: {event}</h1>")
 						file.write(f"<h2>{headline}\r\nISSUED AT: {time}</h2>")
@@ -115,9 +115,7 @@ def webpage_update():
 						file.write(f"<li><a href={headline.replace(' ', '_')}.html>{headline}</a></li>")
 				except:
 					headline_cache = headline.replace(":", "").replace(" ", "_").replace("/", "").replace(";", "").replace("?", "")
-					if f"{headline_cache}.html" in os.listdir():
-						continue
-					with open(f'{headline_cache}.html', "a") as file:
+					with open(f'{headline_cache}.html', "w") as file:
 						file.write(f"<h1>WEATHER ALERT: {event}</h1>")
 						file.write(f"<h2>{headline}\r\nISSUED AT: {time}</h2>")
 						file.write(f"<p><b>{details}</b></p>")
@@ -144,7 +142,7 @@ def webpage_update():
 			if not silent:
 				print(time)
 				print(f"{int(parameters['wait_time']) / 60} minutes before next request")
-			t.sleep(int(parameter['wait_time']))
+			t.sleep(int(parameters['wait_time']))
 		except requests.exceptions.RequestException as e:
 			if "400" in str(e):
 				msg = f"*ERROR GETTING ALERT DATA ({int(parameters['wait_time_err']) / 60} minute(s) before next attempt): \n\n{e}\n**THE ERROR YOUVE ENCOUNTERED IS BECAUSE THE STATE IS NOT SET.***\nEITHER SET IT IN THE CONFIG FILE OR USE THE 'set-default' COMMAND"
@@ -164,8 +162,7 @@ def webpage_update():
 			t.sleep(int(parameters['wait_time_err']))
 		except Exception as e:
 			done = 1
+			print(e)
 			custom_update(f"UNEXPECTED ERROR ENCOUNTERED: {e}")
 			time_thread.join()
-			
-if __name__ == "__main__":
-	webpage_update()
+webpage_update()
