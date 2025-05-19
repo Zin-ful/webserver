@@ -22,8 +22,10 @@ while True:
 	inp = input(">>> ")
 	if "1" in inp or inp == "Weather Tool" or inp == "weather tool" or inp == "WeatherTool" or inp == "weathertool":
 		updateme(link1, "weathertool.py")
+		break
 	elif "2" in inp or "web" in inp or "Web" in inp or "WEB" in inp or "wEB" in inp:
 		updateme(link2, "wt-background.py")
+		break
 	else:
 		print("Sorry but that isnt an option")
 		continue
