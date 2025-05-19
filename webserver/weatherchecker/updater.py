@@ -5,7 +5,7 @@ link0 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/web
 link1 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool.py"
 link2 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool-backgroundproc.py"
 link3 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/linux-weathertool.py"
-print("What would you like to update?\n\n0. Updater\n1. Weather Tool\n2. Weather Tool (Linux)\n3. Weather Tool Web")
+print("Tool Version: 1.4\nWhat would you like to update?\n\n0. Updater\n1. Weather Tool\n2. Weather Tool (Linux)\n3. Weather Tool Web")
 def updateme(link, name):
 	response = requests.get(link)
 	errors = response.raise_for_status()
