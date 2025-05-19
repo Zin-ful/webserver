@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+
 import requests
 import json
 import threading
@@ -23,6 +26,7 @@ county = "none"
 silent = 1
 local_list = ["MI","OH","TX","KY"]
 
+fetch_time = 0
 fetch_cmd = ["curl", "-s", url]
 
 parameters = {"wait_time": wait_time, "wait_time_noalert": wait_time_noalert, "wait_time_err": wait_time_err, "silent": silent, "state": state, "county": county}
@@ -38,7 +42,7 @@ else:
 			if item == "" or item == " " or item == "\n":
 				continue
 			key, value = item.split("=")
-			parameters[key] = value.strip().strip('\n').strip('%0A')
+			parameters[key] = value.strip().strip('\n')
 
 
 def custom_update(msg):
@@ -51,11 +55,18 @@ def timer():
 		t.sleep(1)
 		fetch_time += 1
 		if done:
-			return fetch_time
+			break
 
 def webpage_update():
 	global done
 	while True:
+		with open("parameters.conf","r") as file:
+			paradata = file.readlines()
+			for item in paradata:
+				if item == "" or item == " " or item == "\n":
+					continue
+				key, value = item.split("=")
+				parameters[key] = value.strip().strip('\n')
 		with open("alerts.html","w") as file:
 			file.write("<!DOCTYPE html><html><body>")
 		try:
@@ -65,6 +76,8 @@ def webpage_update():
 			weatherdata = requests.get(url+parameters['state'])
 			errors = weatherdata.raise_for_status()
 			data = weatherdata.json()
+			done = 1
+			time_thread.join()
 			alert_data = data.get("features", [])
 			if not alert_data:
 				no_alert = f"NO ALERTS FOR {parameters['state']}, YAYYYY :DDD (waiting {int(parameters['wait_time_noalert']) / 60} minutes before next request)"
@@ -91,18 +104,25 @@ def webpage_update():
 					time = "Unknown time"
 				if "no properties" in properties:
 					properties = "no properties"
-				with open(f"alerts.html", "a") as file:
-					file.write(f"<li><a href={headline.replace(' ', '_')}.html>{headline}</a></li>")
 				try:
+					if f"{headline.replace(' ', '_')}.html" in os.listdir():
+						continue
 					with open(f"{headline.replace(' ', '_')}.html", "a") as file:
 						file.write(f"<h1>WEATHER ALERT: {event}</h1>")
 						file.write(f"<h2>{headline}\r\nISSUED AT: {time}</h2>")
 						file.write(f"<p><b>{details}</b></p>")
-				except OSError:
-					with open(f'{headline.strip("?").strip("/").strip(":").strip(";").strip("{").strip("}").replace(" ", "_")}.html', "a") as file:
+					with open(f"alerts.html", "a") as file:
+						file.write(f"<li><a href={headline.replace(' ', '_')}.html>{headline}</a></li>")
+				except:
+					headline_cache = headline.replace(":", "").replace(" ", "_").replace("/", "").replace(";", "").replace("?", "")
+					if f"{headline_cache}.html" in os.listdir():
+						continue
+					with open(f'{headline_cache}.html', "a") as file:
 						file.write(f"<h1>WEATHER ALERT: {event}</h1>")
 						file.write(f"<h2>{headline}\r\nISSUED AT: {time}</h2>")
 						file.write(f"<p><b>{details}</b></p>")
+					with open(f"alerts.html", "a") as file:
+						file.write(f"<li><a href={headline_cache}.html>{headline}</a></li>")
 				with open("past_alerts.html", "r") as file1:
 					file_data = file1.read()
 					if time not in file_data:
@@ -121,8 +141,6 @@ def webpage_update():
 			with open("alerts.html", "a") as file:
 				file.write(f"<p>processing and fetch time:{fetch_time}</p>")
 				file.write(f"<li><a href=past_alerts.html>Look at previous alerts here</a></li></body></html>")
-			done = 1
-			time_thread.join()
 			if not silent:
 				print(time)
 				print(f"{int(parameters['wait_time']) / 60} minutes before next request")
@@ -144,6 +162,10 @@ def webpage_update():
 					print(msg)
 				custom_update(msg)
 			t.sleep(int(parameters['wait_time_err']))
+		except Exception as e:
+			done = 1
+			custom_update(f"UNEXPECTED ERROR ENCOUNTERED: {e}")
+			time_thread.join()
 			
 if __name__ == "__main__":
 	webpage_update()

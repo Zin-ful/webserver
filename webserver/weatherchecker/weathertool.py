@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import requests
 import json
 import threading
@@ -37,8 +39,7 @@ else:
 			if item == "" or item == " " or item == "\n":
 				continue
 			key, value = item.split("=")
-			parameters[key] = value.strip().strip('\n').strip('%0A')
-
+			parameters[key] = value.strip().strip('\n')
 
 fetch_time = 0
 done = 0
@@ -62,7 +63,12 @@ def cleanfiles(param):
 	print("back to shell...")
 
 def helpy(param):
-	return
+	print("\nalert (state): gets alerts for the specified state, if no state is specified, then the default is used.")
+	print("clean: removed all HTML files other than alerts.html and past_alerts.html")
+	print("set-default: opens the configuration tool")
+	print("debug: prints the values of in-use parameters")
+	print("help: what do you think?")
+	cmd_list = {"alert": get_upd, "cast": cast, "help": helpy, "set-default":config, "debug": debug, "clean": cleanfiles}
 
 def paraupd():
 	with open("parameters.conf", "w") as file:
@@ -73,34 +79,37 @@ def debug(param):
 		print(f"{key}={value}")
 def config(param):
 	global parameters
-	print("You have opened the config tool. Please select one of these options to configure:\n")
+	print("\nYou have opened the config tool. Please select one of these options to configure:\n")
 	while True:
-		print(f"wait_time - the amount of time the auto-updater waits before making a new request Value: {wait_time}")
-		print(f"wait_time_noalert - the amount of time after no alerts were found that the updater waits before making a new request Value: {wait_time_noalert}")
-		print(f"wait_time_err - the amount of time the updater waits after getting an error before making a new request. Value: {wait_time_err}")
+		print(f"\nwait_time (webupdater) - the amount of time the auto-updater waits before making a new request Value: {parameters['wait_time']}")
+		print(f"wait_time_noalert (webupdater) - the amount of time after no alerts were found that the updater waits before making a new request Value: {parameters['wait_time_noalert']}")
+		print(f"wait_time_err (webupdater) - the amount of time the updater waits after getting an error before making a new request. Value: {parameters['wait_time_err']}")
 		print(f"url (not able to be changed)- the URL that the program will request data from (json formatted). Value: {url}")
-		print(f"state - the state in which you want alerts from. Value: {state}")
-		print(f"county - setting the county will force open a browser if theres an alert found for your county.\nIf no browser exists, it will take over the command-line and will force you to confirm that youve seen it. Value: {state}")
-		inp = input("(config)>>> ")
+		print(f"state - the state in which you want alerts from. Value: {parameters['state']}")
+		print(f"county - setting the county will force open a browser if theres an alert found for your county. Value: {parameters['county']}\n**If no browser exists, it will take over the command-line and will force you to confirm that youve seen it.")
+		inp = input("\n(config)>>> ")
 		if "ex" in inp:
 			return
 		for key, value in parameters.items():
 			if inp.lower() == key:
-				inp = input(f"Selected: {key}\nNew value: ")
+				inp2 = input(f"Selected: {key}\nNew value: ")
 				if key == "county" or key == "state":
-					pass
+					if key == "state":
+						inp2 = inp2.upper()
 				else:
 					try:
-						inp = int(inp)
+						inp3 = int(inp2)
 					except:
 						print("Numbers only please.")
 						continue
-				parameters[key] = inp
+
+				parameters[key] = str(inp2)
+				print(f"\nupdated {inp}. New value: {parameters[key]}")
 				paraupd()
 				
 				
 def timer():
-	global fetch_time
+	global fetch_time, done
 	fetch_time = 0
 	while True:
 		t.sleep(1)
@@ -121,12 +130,12 @@ def get_upd(param):
 		done = 0
 		time_thread = threading.Thread(target=timer)
 		time_thread.start()
-		weatherdata = requests.get(url+parameters['state'])
+		weatherdata = requests.get(url+parameters['state'].upper())
 		errors = weatherdata.raise_for_status()
 		data = weatherdata.json()
 		alert_data = data.get("features", [])
-		if county in data:
-			emergency(event, headline, details, effective)
+		done = 1
+		time_thread.join()
 		if not alert_data:
 			no_alert = f"NO ALERTS FOR {parameters['state']}, YAYYYY :DDD"
 			print(no_alert)
@@ -139,23 +148,32 @@ def get_upd(param):
 			headline = properties.get("headline", "no headline")
 			details = properties.get("description", "no description")
 			effective = properties.get("effective")
+			if parameters["county"] in headline or parameters["county"].upper() in headline or parameters["county"].lower() in headline:
+				emergency(event, headline, details, effective)
+		for alert in alert_data:
+			properties = alert.get("properties", {})
+			event = properties.get("event", "unknown event")
+			headline = properties.get("headline", "no headline")
+			details = properties.get("description", "no description")
+			effective = properties.get("effective")
 			if effective:
 				time = datetime.fromisoformat(effective.rstrip('Z')).strftime('%Y-%m-%d %H:%M %Z')
 			if not effective:
 				time = "Unknown time"
 			print(f"\n\n********ALERT {count}************** \nTIME: {time}\nEVENT: {event}\n{headline}\nDESCRIPTION: {details}\n")
 			count += 1
-			print("PRESS *ENTER* TO ACKNOWLEDGE")
+			print("PRESS *ENTER* TO ACKNOWLEDGE (or type x to exit early)")
 			ack = input()
+			if "x" in ack.lower():
+				break
 			alert_list.append(f"{time}: {headline}")
-		done = 1
 		if param:
 			parameters['state'] = state_cache
 		print("here is a shortened version if your terminal cant scroll:")
 		for i in alert_list:
 			print(i)
 		print(f"fetched in: {fetch_time}\n")
-		time_thread.join()
+		
 	except requests.exceptions.RequestException as e:
 		if "400" in str(e):
 			msg = f"*ERROR GETTING ALERT DATA: \n\n{e}\n**THE ERROR YOUVE ENCOUNTERED IS BECAUSE THE STATE IS NOT SET.***\nEITHER SET IT IN THE CONFIG FILE OR USE THE 'set-default' COMMAND"
@@ -172,11 +190,11 @@ def get_upd(param):
 
 def emergency(event, headline, details, effective):
 	while True:
-		print(f"********{event} ALERT FOR {county}**************")
-		print(f"********{event} ALERT FOR {county}**************")
+		print(f"********{event} ALERT FOR {parameters["county"]}**************")
+		print(f"********{event} ALERT FOR {parameters["county"]}**************")
 		print(f"\n{headline}\n{details}\n")
-		print(f"********{event} ALERT FOR {county}**************")
-		print(f"********{event} ALERT FOR {county}**************")
+		print(f"********{event} ALERT FOR {parameters["county"]}**************")
+		print(f"********{event} ALERT FOR {parameters["county"]}**************")
 		inp = input("\nPLEASE TYPE 'yes' TO ACKNOWLEDGE\n>>> ")
 		if "y" in inp:
 			break
