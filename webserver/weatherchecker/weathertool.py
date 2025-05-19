@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 import sys
 import time as t
-
+print("Tool Version: 1.4\n")
 if "alerts.html" not in os.listdir():
 	with open("alerts.html","w") as file:
 		file.write("")
