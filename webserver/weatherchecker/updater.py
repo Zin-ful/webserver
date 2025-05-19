@@ -8,7 +8,7 @@ def updateme(link, name):
 	newfile = requests.get(link)
 	errors = newfile.raise_for_status()
 	with open(name, "w") as file:
-		file.write(newfile)
+		file.write(str(newfile))
 
 while True:
 	inp = input(">>> ")
