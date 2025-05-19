@@ -4,6 +4,8 @@ import subprocess
 link1 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool.py"
 link2 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool-backgroundproc.py"
 print("What would you like to update?\n\n1. Weather Tool\n2.Weather Tool Web")
+def updateme(link):
+	subprocess.run(f"wget {link}", shell=True)
 while True:
 	inp = input(">>> ")
 	if "1" in inp or inp == "Weather Tool" or inp == "weather tool" or inp == "WeatherTool" or inp == "weathertool":
@@ -14,5 +16,3 @@ while True:
 		print("Sorry but that isnt an option")
 		continue
 
-def updateme(link):
-	subprocess.run(f"wget {link}", shell=True)
