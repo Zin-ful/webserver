@@ -35,7 +35,7 @@ while True:
 		updateme(link2, "wt-background.py")
 		break
 	elif "2" in inp or "li" in inp or "Li" in inp or "lI" in inp or "wEB" in inp:
-		updateme(link3, "wt.py")
+		updateme(link3, "wt")
 		break
 	else:
 		print("Sorry but that isnt an option")
