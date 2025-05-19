@@ -107,7 +107,7 @@ def webpage_update():
 				try:
 					
 
-					with open(f"{headline.replace(' ', '_')}.html", "a") as file:
+					with open(f"{headline.replace(' ', '_')}.html", "w") as file:
 						file.write(f"<h1>WEATHER ALERT: {event}</h1>")
 						file.write(f"<h2>{headline}\r\nISSUED AT: {time}</h2>")
 						file.write(f"<p><b>{details}</b></p>")
