@@ -18,6 +18,7 @@ def updateme(link, name):
 		print(f"\n****Err: {response.status_code}, code 408 points to your request not reaching the site before it timed out")
 	else:
 		print(f"\n****Err: {response.status_code}")
+	print("updated!!")
 while True:
 	inp = input(">>> ")
 	if "1" in inp or inp == "Weather Tool" or inp == "weather tool" or inp == "WeatherTool" or inp == "weathertool":
