@@ -5,7 +5,7 @@ link0 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/web
 link1 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool.py"
 link2 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool-backgroundproc.py"
 link3 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/linux-weathertool.py"
-print("What would you like to update?\n\n0. Updater\n1. Weather Tool\n2.Weather Tool (Linux)\n3. Weather Tool Web")
+print("What would you like to update?\n\n0. Updater\n1. Weather Tool\n2. Weather Tool (Linux)\n3. Weather Tool Web")
 def updateme(link, name):
 	response = requests.get(link)
 	errors = response.raise_for_status()
@@ -27,6 +27,7 @@ while True:
 		exit()
 	if "0" in inp or "upd" in inp or "Upd" in inp or "uPD" in inp:
 		updateme(link0, "updater.py")
+		break
 	elif "1" in inp or inp == "Weather Tool" or inp == "weather tool" or inp == "WeatherTool" or inp == "weathertool":
 		updateme(link1, "weathertool.py")
 		break
