@@ -225,4 +225,3 @@ def shell():
 
 shell()
 done = 1
-time_thread.join()
