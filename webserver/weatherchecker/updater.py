@@ -6,7 +6,7 @@ link2 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/web
 print("What would you like to update?\n\n1. Weather Tool\n2. Weather Tool Web")
 def updateme(link, name):
 	response = requests.get(link)
-	errors = newfile.raise_for_status()
+	errors = requests.raise_for_status()
 	if response.status_code == 200:
 		with open(name, "w") as file:
 			file.write(response.content)
