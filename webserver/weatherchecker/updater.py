@@ -6,9 +6,9 @@ link2 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/web
 print("What would you like to update?\n\n1. Weather Tool\n2. Weather Tool Web")
 def updateme(link, name):
 	response = requests.get(link)
-	errors = requests.raise_for_status()
+	errors = response.raise_for_status()
 	if response.status_code == 200:
-		with open(name, "w") as file:
+		with open(name, "wb") as file:
 			file.write(response.content)
 	elif response.status_code == 400:
 		print(f"\n****Err: {response.status_code}, code 400 points to the link being incorrect or it could be a server-side issue")
