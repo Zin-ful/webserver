@@ -32,13 +32,17 @@ void index_folder (const char *query, const char *dir, char *output, size_t max_
     while ((entry = readdir(current_dir))) {
         if (strcmp(dir," movies") || strcmp(dir, " television")) {
             if (strstr(entry->d_name, query)) {
-                if (strstr(entry->d_name, ".mp4")) {
+                if (strstr(entry->d_name, ".mp4") || strstr(entry->d_name, ".webm")) {
                     strncat(output, "<li><a style='color:powderblue;' href=movies/", max_output - strlen(output) - 1);
                     strncat(output, entry->d_name, max_output - strlen(output) - 1);
                     strncat(output, ">", max_output - strlen(output) - 1);
                     char cache[256];
                     snprintf(cache, sizeof(cache), "%s", entry->d_name);
-                    dstrip(cache, ".mp4", 1);
+                    if (strstr(entry->d_name, ".mp4")) {
+                        dstrip(cache, ".mp4", 1);
+                    } else if (strstr(entry->d_name, ".webm")) {
+                        dstrip(cache, ".webm", 1);
+                    }
                     simple_replace(cache, "_", " ");
                     strncat(output, cache, max_output - strlen(output) - 1);
                     strncat(output, "</a></li>", max_output - strlen(output) - 1);
