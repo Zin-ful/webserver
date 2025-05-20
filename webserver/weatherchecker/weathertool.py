@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 import sys
 import time as t
-print("Tool Version: 1.2\n")
+print("Tool Version: 1.3\n")
 if "alerts.html" not in os.listdir():
 	with open("alerts.html","w") as file:
 		file.write("")
@@ -148,7 +148,7 @@ def get_upd(param):
 			headline = properties.get("headline", "no headline")
 			details = properties.get("description", "no description")
 			effective = properties.get("effective")
-			if parameters["county"] in headline or parameters["county"].upper() in headline or parameters["county"].lower() in headline:
+			if parameters["county"] in details or parameters["county"].upper() in details or parameters["county"].lower() in details:
 				emergency(event, headline, details, effective)
 		for alert in alert_data:
 			properties = alert.get("properties", {})
