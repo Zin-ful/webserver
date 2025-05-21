@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 
 import requests
-link0 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/updater.py"
-link1 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool.py"
-link2 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/weathertool-backgroundproc.py"
-link3 = "https://raw.githubusercontent.com/Zin-ful/webserver/refs/heads/main/webserver/weatherchecker/linux-weathertool.py"
-print("Tool Version: 1.4\nWhat would you like to update?\n\n0. Updater\n1. Weather Tool\n2. Weather Tool (Linux)\n3. Weather Tool Web")
+link0 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/Universal%20Tools/updater.py"
+print("Tool Version: 1.5\nType 0.")
 def updateme(link, name):
 	response = requests.get(link)
 	errors = response.raise_for_status()
@@ -27,15 +24,6 @@ while True:
 		exit()
 	if "0" in inp or "upd" in inp or "Upd" in inp or "uPD" in inp:
 		updateme(link0, "updater.py")
-		break
-	elif "1" in inp or inp == "Weather Tool" or inp == "weather tool" or inp == "WeatherTool" or inp == "weathertool":
-		updateme(link1, "weathertool.py")
-		break
-	elif "3" in inp or "web" in inp or "Web" in inp or "WEB" in inp or "wEB" in inp:
-		updateme(link2, "wt-background.py")
-		break
-	elif "2" in inp or "li" in inp or "Li" in inp or "lI" in inp or "wEB" in inp:
-		updateme(link3, "wt")
 		break
 	else:
 		print("Sorry but that isnt an option")
