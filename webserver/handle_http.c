@@ -352,7 +352,7 @@ void download_file(int client_socket, const char *path, const char *name, const 
 void handle_client(int client_socket) {
     char buffer[RESERVED];
     char movie_path[612];
-    printf("STEP 1: IN PREP FILE INDEX\n");
+    printf("STEP 1: IN HANDLE CLIENT\n");
     ssize_t bytes_read = read(client_socket, buffer, sizeof(buffer) - 1);
     if (bytes_read <= 0) {
         close(client_socket);
@@ -372,36 +372,46 @@ void handle_client(int client_socket) {
     }
     printf("\nBUFFER %s\nMETHOD %s\nPATH %s\n", buffer, method, path);
     
+    // Handle search requests
     if (strstr(buffer, "GET /search?movies") || strstr(buffer, "GET /search?television")) {
         prep_file_index(client_socket, path);
     
     } else if (strstr(buffer, "GET /search?library")) {
         prep_file_index(client_socket, path);
     
-    } else if (strstr(buffer, "GET /television/") && !strstr(buffer, ".mp4") && !strstr(buffer, ".webm")) {
+    // Handle directory browsing for TV shows
+    } else if (strstr(buffer, "GET /television/") && !strstr(buffer, ".mp4") && !strstr(buffer, ".webm") && !strstr(buffer, "player.html")) {
         char output[RESERVED];
         index_folder("", path, output, sizeof(output));
         send_response(client_socket, "200 OK", "text/html", output);
     
+    // Handle file downloads
     } else if (strstr(buffer, ".epub") || strstr(buffer, ".pdf") || strstr(buffer, ".txt") || strstr(buffer, ".py") || strstr(buffer, ".c")) {
         char *name = pstrip(path, "library/", 1);
         download_file(client_socket, path, name, buffer);
         free(name);
-    } else if (strstr(buffer, "GET /player/player.html")) {
-        prep_video(client_socket, path);
     
-    } else if (strstr(buffer, ".mp4") || strstr(buffer, ".webm4")) {
-            printf("Direct video request - processing: %s\n", path);
-            // Check if the file exists before trying to send it
-            FILE *check = fopen(path, "rb");
-            if (check) {
-                fclose(check);
-                send_video(client_socket, path, buffer);
-            } else {
-                printf("File not found: %s\n", path);
-                send_response(client_socket, "404 Not Found", "text/html", 
-                        "<html><body>Video file not found Code: 006</body></html>");
-            }
+    // Handle video player page requests (NEW: serve actual HTML file)
+    } else if (strstr(buffer, "GET /player/player.html")) {
+        char filepath[RESERVED];
+        snprintf(filepath, sizeof(filepath), "%s/player/player.html", WEBROOT);
+        send_file(client_socket, filepath);
+    
+    // Handle direct video streaming requests
+    } else if (strstr(buffer, ".mp4") || strstr(buffer, ".webm")) {
+        printf("Direct video request - processing: %s\n", path);
+        // Check if the file exists before trying to send it
+        FILE *check = fopen(path, "rb");
+        if (check) {
+            fclose(check);
+            send_video(client_socket, path, buffer);
+        } else {
+            printf("File not found: %s\n", path);
+            send_response(client_socket, "404 Not Found", "text/html", 
+                    "<html><body>Video file not found Code: 006</body></html>");
+        }
+    
+    // Handle all other static files
     } else {
         char filepath[RESERVED];
         snprintf(filepath, sizeof(filepath), "%s%s", WEBROOT, path);
