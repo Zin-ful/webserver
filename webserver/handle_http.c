@@ -13,7 +13,13 @@
 #define RESERVED 8192
 #define WEBROOT "./main_pages"
 #define MAX_THREADS 20  // Maximum number of worker threads
- 
+
+/*
+hey, can you simplify my C webserver? Like i want it to be dedicated soley to fast and efficient video streaming for the client (network speed) and host (cpu usage). So feel free to get rid of file downloads and anything else. So purely video and basic html webpage serving. I want to also make the code itself simplier, easier to debug (im not super good with C), and in general flow more understadabley. The only supported files are MKV and MP4, and keep the multithreading but maybe reorganize it so its all at the top/bottom:
+
+There are also some bugs in general that your redesign should patch, and keep the movies and television seperation since television uses nested folders and movies doesnt
+
+*/
 
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t queue_cond = PTHREAD_COND_INITIALIZER;

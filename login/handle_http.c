@@ -18,7 +18,11 @@ int main() {
         exit(EXIT_FAILURE);
 
     }
-
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt failed");
+        exit(EXIT_FAILURE);
+    }
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(8080);
@@ -45,6 +49,44 @@ int main() {
     return 1;
 }
 
+void get_login(int client_socket) {
+
+    char buffer[RESERVED];
+    ssize_t bytes_read = read(client_socket, buffer, sizeof(buffer) - 1);
+    if (bytes_read <= 0) {
+        close(client_socket);
+        return;
+    }
+    
+    buffer[bytes_read] = '\0';
+    char method[8], login_info[256], username[128], password[128];
+    sscanf(buffer, "%s %s", method, login_info);
+    //check whether to create or login at login_info
+    int pass = 0;
+    int j = 0;
+    for (int i = 0; i < strlen(login_info) + 1; i++) {
+        if (login_info[i] == '=') {
+            for (j = 0; login_info[j + i] != '\0'; j++)
+                if (!pass) {
+                    if (login_info[i + j + 1] == '&') {
+                        username[j] = '\0';
+                        pass = 1;
+                        break;
+                    }
+                    username[j] = login_info[i + j + 1];
+                } else if (pass) {
+                    if (login_info[i + j + 1] == '\0') {
+                        password[j + 1] = '\0';
+                        break;
+                    }
+                    password[j] = login_info[i + j + 1];
+                }
+        }
+
+    }
+    printf("method: %s\ntype: %s\npass: %s\nuser: %s\n", method, login_info, password, username);
+
+}
 
 void prompt_login(int client_socket) {
     FILE *file = fopen("login.html", "r");
@@ -64,8 +106,9 @@ void prompt_login(int client_socket) {
     while (fgets(buffer, sizeof(buffer), file)) {
         write(client_socket, buffer, strlen(buffer));
     }
-    printf("\n\nBUFFER %s\n\n", buffer);
     fclose(file);
+    
+    get_login(client_socket);
 
 
 }
