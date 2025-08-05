@@ -13,12 +13,7 @@
 #define RESERVED 8192
 #define WEBROOT "./main_pages"
 #define MAX_THREADS 20  // Maximum number of worker threads
-
-/*
-ALL MULTI-THREADING WAS DONE BY AI - CLAUDE 3.7
-
-I also had it refine my comments. Nothing else was touched.
-*/
+ 
 
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t queue_cond = PTHREAD_COND_INITIALIZER;
@@ -395,7 +390,7 @@ void handle_client(int client_socket) {
     } else if (strstr(buffer, "GET /player/player.html")) {
         prep_video(client_socket, path);
     
-    } else if (strstr(buffer, ".mp4") || && strstr(buffer, ".webm4")) {
+    } else if (strstr(buffer, ".mp4") || strstr(buffer, ".webm4")) {
             printf("Direct video request - processing: %s\n", path);
             // Check if the file exists before trying to send it
             FILE *check = fopen(path, "rb");
