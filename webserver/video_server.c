@@ -15,7 +15,6 @@
 #define WEBROOT "./main_pages"
 #define MAX_THREADS 20
 
-// ========================= THREADING SYSTEM =========================
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t queue_cond = PTHREAD_COND_INITIALIZER;
 
@@ -26,6 +25,54 @@ typedef struct {
 
 client_request *queue_head = NULL;
 client_request *queue_tail = NULL;
+
+// ========================= MAIN SERVER =========================
+
+int main() {
+    signal(SIGPIPE, SIG_IGN);
+    
+    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == -1) {
+        perror("Socket failed");
+        exit(1);
+    }
+    
+    int opt = 1;
+    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+    
+    if (bind(server_socket, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        perror("Bind failed");
+        exit(1);
+    }
+    
+    if (listen(server_socket, 10) < 0) {
+        perror("Listen failed");
+        exit(1);
+    }
+    
+    printf("(CODE init0) video Server started on port %d\n", PORT);
+    start_threads();
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &addr_len);
+        
+        if (client_socket >= 0) {
+            printf("\n\n\n(CODE pt0) accepting client\n");
+            add_client(client_socket);
+        }
+    }
+    
+    close(server_socket);
+    return 0;
+}
+
+// ========================= THREADING SYSTEM =========================
 
 void add_client(int socket) {
     printf("(CODE pt1) adding new client\n");
@@ -79,72 +126,11 @@ void start_threads() {
     printf("(CODE init1) started %d worker threads\n", MAX_THREADS);
 }
 
-// ========================= MAIN SERVER =========================
-int main() {
-    signal(SIGPIPE, SIG_IGN);
-    
-    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket == -1) {
-        perror("Socket failed");
-        exit(1);
-    }
-    
-    int opt = 1;
-    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    
-    struct sockaddr_in address;
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
-    
-    if (bind(server_socket, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("Bind failed");
-        exit(1);
-    }
-    
-    if (listen(server_socket, 10) < 0) {
-        perror("Listen failed");
-        exit(1);
-    }
-    
-    printf("(CODE init0) video Server started on port %d\n", PORT);
-    start_threads();
-    while (1) {
-        struct sockaddr_in client_addr;
-        socklen_t addr_len = sizeof(client_addr);
-        int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &addr_len);
-        
-        if (client_socket >= 0) {
-            printf("\n\n\n(CODE pt0) accepting client\n");
-            add_client(client_socket);
-        }
-    }
-    
-    close(server_socket);
-    return 0;
-}
 
-// ========================= SIMPLE HTTP HELPERS =========================
-void send_simple_response(int socket, char *status, char *content_type, char *body) {
-    printf("(CODE utils_1) sending http header of type: %s\n", status);
-    char response[BUFFER_SIZE];
-    int len = snprintf(response, sizeof(response),
-        "HTTP/1.1 %s\r\n"
-        "Content-Type: %s\r\n"
-        "Content-Length: %zu\r\n"
-        "Connection: close\r\n\r\n"
-        "%s", status, content_type, strlen(body), body);
-    send(socket, response, len, 0);
-}
 
-void send_404(int socket) {
-    printf("(CODE utils_2) 404 occured\n");
-    char *body = "<html><body style='background-color:black;color:white;'>"
-                 "<h1>404 - Video Not Found</h1></body></html>";
-    send_simple_response(socket, "404 Not Found", "text/html", body);
-}
 
 // ========================= HTML FILE SERVING =========================
+
 void serve_html(int socket, char *file_path) {
     printf("(CODE html_1) sending html file: %s\n", file_path);
 
@@ -164,87 +150,28 @@ void serve_html(int socket, char *file_path) {
     fclose(file);
 }
 
-// ========================= VIDEO STREAMING =========================
-void stream_video(int socket, char *video_path, char *headers) {
-    printf("(CODE vid0) preparing to stream: %s\n", video_path);
-    FILE *file = fopen(video_path, "rb");
-    if (!file) {
-        send_404(socket);
-        return;
-    }
-
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    //range request for video seeking
-    long start = 0, end = file_size - 1;
-    char *range = strstr(headers, "Range: bytes=");
-    if (range) {
-        range += 13; //skip "Range: bytes="
-        sscanf(range, "%ld-%ld", &start, &end);
-        if (end <= 0 || end >= file_size) end = file_size - 1;
-        fseek(file, start, SEEK_SET);
-    }
-
-    //headers
-    char response[1024];
-    char *content_type = strstr(video_path, ".mkv") ? "video/x-matroska" : "video/mp4";
-    
-    if (range) {
-        snprintf(response, sizeof(response),
-                 "HTTP/1.1 206 Partial Content\r\n"
-                 "Content-Type: %s\r\n"
-                 "Accept-Ranges: bytes\r\n"
-                 "Content-Range: bytes %ld-%ld/%ld\r\n"
-                 "Content-Length: %ld\r\n\r\n",
-                 content_type, start, end, file_size, (end - start + 1));
-    } else {
-        snprintf(response, sizeof(response),
-                 "HTTP/1.1 200 OK\r\n"
-                 "Content-Type: %s\r\n"
-                 "Accept-Ranges: bytes\r\n"
-                 "Content-Length: %ld\r\n\r\n",
-                 content_type, file_size);
-    }
-    send(socket, response, strlen(response), 0);
-
-    //actually streaming
-    printf("(CODE init_vid) starting stream\n");
-    char buffer[BUFFER_SIZE];
-    long bytes_left = end - start + 1;
-    while (bytes_left > 0) {
-        int chunk_size = (bytes_left < BUFFER_SIZE) ? bytes_left : BUFFER_SIZE;
-        int bytes_read = fread(buffer, 1, chunk_size, file);
-        if (bytes_read <= 0) break;
-        
-        if (send(socket, buffer, bytes_read, MSG_NOSIGNAL) <= 0) break;
-        bytes_left -= bytes_read;
-    }
-    fclose(file);
+// +++ http helpers
+void send_simple_response(int socket, char *status, char *content_type, char *body) {
+    printf("(CODE utils_1) sending http header of type: %s\n", status);
+    char response[BUFFER_SIZE];
+    int len = snprintf(response, sizeof(response),
+        "HTTP/1.1 %s\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: close\r\n\r\n"
+        "%s", status, content_type, strlen(body), body);
+    send(socket, response, len, 0);
 }
 
-void serve_video_player(int socket, char *video_path) {
-    printf("(CODE vid1) using video player\n");
-    char player_html[2048];
-    char *filename = strrchr(video_path, '/');
-    if (filename) filename++; else filename = video_path;
-    
-    snprintf(player_html, sizeof(player_html),
-             "<!DOCTYPE html>\n"
-             "<html>\n<head><title>Video Player</title></head>\n"
-             "<body style='background-color:black; color:white; text-align:center;'>\n"
-             "<h2>Now Playing: %s</h2>\n"
-             "<a href='/' style='color:powderblue;'>← Home</a><br><br>\n"
-             "<video width='1280' height='720' controls>\n"
-             "<source src='%s' type='video/mp4'>\n"
-             "</video>\n</body></html>",
-             filename, video_path);
-    
-    send_simple_response(socket, "200 OK", "text/html", player_html);
+void send_404(int socket) {
+    printf("(CODE utils_2) 404 occured\n");
+    char *body = "<html><body style='background-color:black;color:white;'>"
+                 "<h1>404 - Video Not Found</h1></body></html>";
+    send_simple_response(socket, "404 Not Found", "text/html", body);
 }
 
-// ========================= MAIN REQUEST HANDLER =========================
+// +++ request handler
+
 void handle_client_request(int socket) {
     printf("(CODE main) handling request\n");
     char buffer[BUFFER_SIZE];
@@ -324,3 +251,88 @@ void handle_client_request(int socket) {
     
     close(socket);
 }
+
+// ========================= VIDEO STREAMING =========================
+void stream_video(int socket, char *video_path, char *headers) {
+    printf("(CODE vid0) preparing to stream: %s\n", video_path);
+    FILE *file = fopen(video_path, "rb");
+    if (!file) {
+        send_404(socket);
+        return;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    //range request for video seeking
+    long start = 0, end = file_size - 1;
+    char *range = strstr(headers, "Range: bytes=");
+    if (range) {
+        range += 13; //skip "Range: bytes="
+        sscanf(range, "%ld-%ld", &start, &end);
+        if (end <= 0 || end >= file_size) end = file_size - 1;
+        fseek(file, start, SEEK_SET);
+    }
+
+    //headers
+    char response[1024];
+    char *content_type = strstr(video_path, ".mkv") ? "video/x-matroska" : "video/mp4";
+    
+    if (range) {
+        snprintf(response, sizeof(response),
+                 "HTTP/1.1 206 Partial Content\r\n"
+                 "Content-Type: %s\r\n"
+                 "Accept-Ranges: bytes\r\n"
+                 "Content-Range: bytes %ld-%ld/%ld\r\n"
+                 "Content-Length: %ld\r\n\r\n",
+                 content_type, start, end, file_size, (end - start + 1));
+    } else {
+        snprintf(response, sizeof(response),
+                 "HTTP/1.1 200 OK\r\n"
+                 "Content-Type: %s\r\n"
+                 "Accept-Ranges: bytes\r\n"
+                 "Content-Length: %ld\r\n\r\n",
+                 content_type, file_size);
+    }
+    send(socket, response, strlen(response), 0);
+
+    //actually streaming
+    printf("(CODE init_vid) starting stream\n");
+    char buffer[BUFFER_SIZE];
+    long bytes_left = end - start + 1;
+    while (bytes_left > 0) {
+        int chunk_size = (bytes_left < BUFFER_SIZE) ? bytes_left : BUFFER_SIZE;
+        int bytes_read = fread(buffer, 1, chunk_size, file);
+        if (bytes_read <= 0) break;
+        
+        if (send(socket, buffer, bytes_read, MSG_NOSIGNAL) <= 0) break;
+        bytes_left -= bytes_read;
+    }
+    fclose(file);
+}
+
+// +++ video player html page
+
+void serve_video_player(int socket, char *video_path) {
+    printf("(CODE vid1) using video player\n");
+    char player_html[2048];
+    char *filename = strrchr(video_path, '/');
+    if (filename) filename++; else filename = video_path;
+    
+    snprintf(player_html, sizeof(player_html),
+             "<!DOCTYPE html>\n"
+             "<html>\n<head><title>Video Player</title></head>\n"
+             "<body style='background-color:black; color:white; text-align:center;'>\n"
+             "<h2>Now Playing: %s</h2>\n"
+             "<a href='/' style='color:powderblue;'>← Home</a><br><br>\n"
+             "<video width='1280' height='720' controls>\n"
+             "<source src='%s' type='video/mp4'>\n"
+             "</video>\n</body></html>",
+             filename, video_path);
+    
+    send_simple_response(socket, "200 OK", "text/html", player_html);
+}
+
+// ========================= LOGIN SYSTEM =========================
+// will be importing from a login system file
