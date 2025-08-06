@@ -92,6 +92,11 @@ void client_request(int client_socket) {
     send_page(client_socket, path);
 }
 
+void generate_page(int client_socket, const char *page) {
+    send_http_head(client_socket);
+    write(client_socket, page, strlen(page));
+}
+
 int send_page(int client_socket, const char *filepath) {
     FILE *file = fopen(filepath, "r");
     if (!file) {
@@ -156,12 +161,58 @@ void get_account(char *login_info) {
     }
     if (strstr(login_info, "/create?")) {
         printf("Creating account...\n");
+        create_account(username, password)
     } else if (strstr(login_info, "/login?")) {
         printf("Logging in...\n");
+        verifiy_account()
     }
 }
 
+int create_account(const char *username, const char *password) {
+    char path[1024];
+    snprintf(path, sizeof(path), "users/%s.conf",username);
+    FILE *file = fopen(path, "r");
+    if (file) {
+        fclose(file);
+        return 0;
+    }
+    fclose(file);
+    FILE *file = fopen(path, "w");
+    fprintf(file, "username:%s\npassword:%s\nverified:0", username, password);
+    fclose(file);
+    return 1;
+}
 
+int verifiy_account(const char *username, const char *password) {
+    char path[1024];
+    snprintf(path, sizeof(path), "users/%s.conf",username);
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        fclose(file);
+        return 0;
+    }
+    char login_info[RESERVED];
+    size_t data = fread(login_info, 1, sizeof(login_info) - 1, file);
+    login_info[data] = '\0';
+    char copy[sizeof(login_info)];
+    strcpy(copy, input);
+    
+    char *token;
+    char *username, *password, *verified;
+    int i = 0;
+        for (token = strtok(copy, "\n"); token != NULL; token = strtok(NULL, "\n")) {
+        char *colon = strchr(token, ':');
+        if (colon) {
+            if (i == 0) username = colon + 1;
+            else if (i == 1) password = colon + 1;
+            else if (i == 2) verified = colon + 1;
+            i++;
+        }
+    }
+    printf("Username: %s\n", username);
+    printf("Password: %s\n", password);
+    printf("Verified: %s\n", verified);
+}
 
 
 
