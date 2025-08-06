@@ -86,7 +86,8 @@ void client_request(int client_socket) {
         send_page(client_socket, "login.html");
         return;
     } else if (strstr(data, "&")) {
-        get_account(data);
+        get_account(client_socket, data);
+        return;
     }
     char *path = data + 1;
     send_page(client_socket, path);
@@ -134,7 +135,7 @@ int check_file_exist(const char *path) {
 Account stuffs
 */
 
-void get_account(char *login_info) {
+void get_account(int client_socket, char *login_info) {
     char username[128], password[128];
     //check whether to create or login at login_info
     int pass = 0;
@@ -151,7 +152,7 @@ void get_account(char *login_info) {
                     username[j] = login_info[i + j + 1];
                 } else if (pass) {
                     if (login_info[i + j + 1] == '\0') {
-                        password[j + 1] = '\0';
+                        password[j] = '\0';
                         break;
                     }
                     password[j] = login_info[i + j + 1];
@@ -159,59 +160,95 @@ void get_account(char *login_info) {
             }
         }
     }
+    printf("%s\n", login_info);
     if (strstr(login_info, "/create?")) {
-        printf("Creating account...\n");
-        create_account(username, password)
+        if(create_account(username, password)) {
+            send_page(client_socket,"verify.html");
+        } else {
+            perror("account creation failed");
+        }
     } else if (strstr(login_info, "/login?")) {
-        printf("Logging in...\n");
-        verifiy_account()
+        int is_verified = verifiy_account(username, password);
+        if (!is_verified) {
+            send_page(client_socket, "login_fail.html");
+        } else if (is_verified == 1) {
+            send_page(client_socket, "index.html");
+        } else if (is_verified == 2) {
+            send_page(client_socket, "verify.html");
+        }
+        return;
     }
 }
 
 int create_account(const char *username, const char *password) {
     char path[1024];
+    printf("creating account..\n");
     snprintf(path, sizeof(path), "users/%s.conf",username);
-    FILE *file = fopen(path, "r");
-    if (file) {
-        fclose(file);
+    printf("%s\n", path);
+    FILE *test = fopen(path, "r");
+    printf("file opened\n");
+    if (test) {
+        printf("account exists\n");
+        fclose(test);
         return 0;
     }
-    fclose(file);
+    printf("account does not exist\n");
+
     FILE *file = fopen(path, "w");
+    printf("file opened\n");
+
     fprintf(file, "username:%s\npassword:%s\nverified:0", username, password);
+    printf("file written\n");
+
     fclose(file);
+    printf("account created\n");
     return 1;
 }
 
 int verifiy_account(const char *username, const char *password) {
     char path[1024];
+    printf("logging in\n");
     snprintf(path, sizeof(path), "users/%s.conf",username);
+    printf("%s\n", path);
     FILE *file = fopen(path, "r");
     if (!file) {
-        fclose(file);
+        printf("Account does not exist.\n");
         return 0;
     }
     char login_info[RESERVED];
     size_t data = fread(login_info, 1, sizeof(login_info) - 1, file);
     login_info[data] = '\0';
     char copy[sizeof(login_info)];
-    strcpy(copy, input);
+    strcpy(copy, login_info);
     
     char *token;
-    char *username, *password, *verified;
+    char *vname, *vpass, *verified;
     int i = 0;
         for (token = strtok(copy, "\n"); token != NULL; token = strtok(NULL, "\n")) {
         char *colon = strchr(token, ':');
         if (colon) {
-            if (i == 0) username = colon + 1;
-            else if (i == 1) password = colon + 1;
+            if (i == 0) vname = colon + 1;
+            else if (i == 1) vpass = colon + 1;
             else if (i == 2) verified = colon + 1;
             i++;
         }
     }
-    printf("Username: %s\n", username);
-    printf("Password: %s\n", password);
-    printf("Verified: %s\n", verified);
+    fclose(file);
+    if (strcmp(username, vname) == 0 && strcmp(password, vpass) == 0) {
+        printf("account exists: %s\n", verified);
+        if (!strcmp(verified, "0")) {
+            printf("account not verified\n");
+            return 2;
+        } else if (!strcmp(verified, "1")) {
+            printf("user logged in\n");
+            return 1;
+        } else {
+            printf("unknown exception in login\n");
+        }
+    } else {
+        printf("bad password\n");
+        return 0;
+    }
 }
 
 
