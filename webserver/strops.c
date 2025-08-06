@@ -275,4 +275,40 @@ char* disolate(const char *string1, char *string2, const char *isol) {
       }
 }
 
+/*char* isolate_two(const char initial_delim, const char delim, const char *string1, char new_string_1, char new_string_2) {
+    int pass = 0;
+    int j = 0;
+    for (int i = 0; i < strlen(string1) + 1; i++) {
+        if (string1[i] == initial_delim) {
+            for (j = 0; string1[j + i] != '\0'; j++) {
+                if (!pass) {
+                    if (string1[i + j + 1] == delim) {
+                        new_string_1[j] = '\0';
+                        pass = 1;
+                        break;
+                    }
+                    new_string_1[j] = string1[i + j + 1];
+                } else if (pass) {
+                    if (string1[i + j + 1] == '\0') {
+                        new_string_2[j + 1] = '\0';
+                        break;
+                    }
+                    new_string_2[j] = string1[i + j + 1];
+                }
+            }
+        }
+    }
+}
 
+int check_file_exist(const char *path) {
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        fclose(file);
+        return 0;
+    } else if (file) {
+        fclose(file);
+        return 1;
+    } else {
+        return 0;
+    }
+}*/

@@ -11,13 +11,20 @@ int find(const char *string1, const char *string2); //does not always return 1 s
 int find_all(const char *string1, const char *string2); //returns an int with the total amount of item occurences in the string
 int find_pos(const char *string1, const char *string2, char *location); //returns true or false and adds the positions to a char array
 int getlen(const char *string); //returns the length of a string without the null-terminator
-void simple_replace(char *string, const char *to_replace, const char *replacement) //current alternative to replace/replace all as they dont work
+void simple_replace(char *string, const char *to_replace, const char *replacement); //current alternative to replace/replace all as they dont work
 void replace(char *string, const char *to_replace, const char *replacement); //edits the original string
 void replace_all(char *string, const char *to_replace, const char *replacement); //literally a for-loop of replace
 void replace_pos(char *string, const char to_replace, const char replacement, const char *pos, int increment); //best used with math to dynamically set the increment if needed. Uses an array and incremement to replace specific characters. does not work with string-arrays
 void dcopy(const char *string1, char *string2); //edits the 2nd string with the copy
 char* pcopy(const char *string1); //returns the copied string
 char* pisolate(const char *string, const char *isol);//returns
-char* disolate(const char *string1, char *string2, const char *isol); //edits
+char* disolate(const char *string1, char *string2, const char *isol);
+//char* isolate_two(const char initial_delim, const char delim, const char *string1, char new_string_1, char new_string_2); 
+/*takes one string and isolates two points of it based off of an initial delimiter and an actual 
+delimiter; example: username=user&password=password
 
+if we use '=' as the init delim and '&' as the real one, 
+it will skip username=, copy user (stopping at &), and then do the same for password
+leaving a result of new_string_1 = user and new_string_2 = password
+*/
 #endif
