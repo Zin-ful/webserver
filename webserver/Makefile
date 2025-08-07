@@ -4,7 +4,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O2 -pthread
 TARGET = video_server
-SOURCES = video_server.c video_index.c strops.c
+SOURCES = video_server.c video_index.c strops.c login.c
 OBJECTS = $(SOURCES:.c=.o)
 
 # Default target
@@ -50,6 +50,7 @@ check:
 	@ls main_pages/ >/dev/null 2>&1 || echo "WARNING: main_pages/ directory not found"
 	@ls movies/ >/dev/null 2>&1 || echo "WARNING: movies/ directory not found" 
 	@ls television/ >/dev/null 2>&1 || echo "WARNING: television/ directory not found"
+	@ls users/ >/dev/null 2>&1 || echo "WARNING: users/ directory not found"
 	@echo "Check complete"
 
 # Help

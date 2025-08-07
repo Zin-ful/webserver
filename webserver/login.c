@@ -5,25 +5,52 @@
 
 #define RESERVED 8192
 
-void get_cookie(int client_socket, const char *data, char *username, char *password) {
-    char username[512], password[512];
+int check_cookie(const char *request) {
+    if (strstr(request, "Cookie:")) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+void get_cookie(int client_socket, const char *request, char *username, char *password) {
+    char cookie[512];
+    printf("cookie found\n");
+    const char *cookie_position = strstr(request, "Cookie: ");
+    int cookie_offset = 22;
+    for (int i = cookie_offset; cookie_position[i] != '\n' || cookie_position[i] == ' '; i++) {
+        printf("%c\n", cookie_position[i]);
+        cookie[i - cookie_offset] = cookie_position[i];
+    }
+    cookie[strlen(cookie)] = '\0';
+    printf("cookie %s\n", cookie);
     printf("reading cookie data\n");
-    for (int i = 0; i < strlen(data); i++) {
-        if (data[i] =='&') {
+    for (int i = 0; i < strlen(cookie); i++) {
+        if (cookie[i] =='&') {
             username[i] = '\0';
             break;
         }
-        username[i] = data[i];
+        username[i] = cookie[i];
     }
-    for (int i = 0; i < strlen(data); i++) {
-        if (data[strlen(username) + i] == '\0') {
+    for (int i = 0; i < strlen(cookie); i++) {
+        if (cookie[strlen(username) + i] == '\0') {
             password[i] = '\0';
             break;
         }
-        password[i] = data[strlen(username) + i + 1];
+        password[i] = cookie[strlen(username) + i + 1];
     }
-    printf("%s\n", username);
-    printf("%s\n", password);
+    printf("username from cookie: %s\n", username);
+    printf("password from cookie: %s\n", password);
+}
+
+int check_account_action(const char *request) {
+    if (strstr(request, "/login?")) {
+        return 1;
+    } else if (strstr(request, "/create?")){
+        return 2;
+    } else {
+        return 0;
+    }
 }
 
 void get_account(int client_socket, char *login_info, char *username, char *password) {

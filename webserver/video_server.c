@@ -9,7 +9,7 @@
 #include <signal.h>
 #include "video_index.h"
 #include "strops.h"
-
+#include "login.h"
 #define PORT 8080
 #define BUFFER_SIZE 8192
 #define WEBROOT "./main_pages"
@@ -171,7 +171,7 @@ void send_404(int socket) {
 }
 
 void send_cookie(int socket, int age, const char *data) {
-    char cookie[RESERVED];
+    char cookie[BUFFER_SIZE];
     snprintf(cookie, sizeof(cookie), "HTTP/1.1 200 OK\r\n"
     "Content-Type: text/html\r\n"
     "Set-Cookie: session_token=%s; Path=/; Max-Age=%d; HttpOnly\r\n"
@@ -182,36 +182,35 @@ void send_cookie(int socket, int age, const char *data) {
 // +++ request handler
 
 int find_request_type(const char* request) {
-    if (!strcmp(path, "/")) {
+    if (!strcmp(request, "/")) {
         return 1; //index
     }
-    else if (strstr(path, "/search?movies=") || strstr(path, "/search?television=")) {
+    else if (strstr(request, "/search?movies=") || strstr(request, "/search?television=")) {
         return 2; //searching media
     }
-    else if (strstr(path, "/television/") && !strstr(path, ".mp4") && !strstr(path, ".mkv")) {
+    else if (strstr(request, "/television/") && !strstr(request, ".mp4") && !strstr(request, ".mkv")) {
         return 3; //browsing directories
     }
-    else if (strstr(path, ".mp4") || strstr(path, ".mkv")) {
+    else if (strstr(request, ".mp4") || strstr(request, ".mkv")) {
         return 4; //video streaming
     }
-    else if (strstr(path, ".html")) {
+    else if (strstr(request, ".html")) {
         return 5; //basic file serving
     }
 }
 
 void handle_client_request(int socket) {
     printf("(CODE main) handling request\n");
-    char buffer[BUFFER_SIZE];
+    char request[BUFFER_SIZE];
     char method[16], path[512];
     
-    int bytes_read = read(socket, buffer, sizeof(buffer) - 1);
+    int bytes_read = read(socket, request, sizeof(request) - 1);
     if (bytes_read <= 0) {
         close(socket);
         return;
     }
-    buffer[bytes_read] = '\0';
-    
-    sscanf(buffer, "%s %s", method, path);
+    request[bytes_read] = '\0';
+    sscanf(request, "%s %s", method, path);
     printf("Request: %s %s\n", method, path);
     
     if (strcmp(method, "GET") != 0) {
@@ -222,17 +221,46 @@ void handle_client_request(int socket) {
     /*
     Before allowing user into site, verify cookie 
     content or else redirect them to login
+    
     */
-    char login_for_cookie[512];
-    snprintf(login_for_cookie, sizeof(login_for_cookie), "%s&%s", username, password);
-    send_http_cookie(client_socket, 2400, login_for_cookie);
     //default to home
     if (find_request_type(path) == 1) {
-        char home_path[256];
-        if (!strstr(request, "Cookie:")) {
-            snprintf(home_path, sizeof(home_path), "%s/login.html", WEBROOT);
+        char home_path[256], username[512], password[512];
+        if (!check_cookie(request)) {
+            if (check_account_action(request) == 1) {
+                get_account(socket, path, username, password);
+                int is_verified = verifiy_account(username, password);
+                if (!is_verified) {
+                    snprintf(home_path, sizeof(home_path), "%s/login_failed.html", WEBROOT);
+                } else if (is_verified == 1) {
+                    char login_for_cookie[512];
+                    snprintf(login_for_cookie, sizeof(login_for_cookie), "%s&%s", username, password);
+                    send_cookie(socket, 2400, login_for_cookie);
+                    snprintf(home_path, sizeof(home_path), "%s/index.html", WEBROOT);
+                } else if (is_verified == 2) {
+                    snprintf(home_path, sizeof(home_path), "%s/verify.html", WEBROOT);
+                }
+            } else if (check_account_action(request) == 2) {
+                get_account(socket, path, username, password);
+                create_account(username, password);
+                snprintf(home_path, sizeof(home_path), "%s/verify.html", WEBROOT);
+            } else {
+                snprintf(home_path, sizeof(home_path), "%s/login.html", WEBROOT);
+            }
+
         } else {
-            snprintf(home_path, sizeof(home_path), "%s/index.html", WEBROOT);
+            get_cookie(socket, path, username, password);
+            int is_verified = verifiy_account(username, password);
+            if (!is_verified) {
+                snprintf(home_path, sizeof(home_path), "%s/login_failed.html", WEBROOT);
+            } else if (is_verified == 1) {
+                char login_for_cookie[512];
+                snprintf(login_for_cookie, sizeof(login_for_cookie), "%s&%s", username, password);
+                send_cookie(socket, 2400, login_for_cookie);
+                snprintf(home_path, sizeof(home_path), "%s/index.html", WEBROOT);
+            } else if (is_verified == 2) {
+                snprintf(home_path, sizeof(home_path), "%s/verify.html", WEBROOT);
+            }
         }
         serve_html(socket, home_path);
     }
@@ -268,10 +296,10 @@ void handle_client_request(int socket) {
         strcpy(video_path, path + 1); //skip slash +1
         
         //check if browser is requesting video stream or player page
-        if (strstr(buffer, "Accept: text/html")) {
+        if (strstr(request, "Accept: text/html")) {
             serve_video_player(socket, path);
         } else {
-            stream_video(socket, video_path, buffer);
+            stream_video(socket, video_path, request);
         }
     }
     

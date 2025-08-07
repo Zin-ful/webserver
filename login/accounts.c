@@ -97,16 +97,7 @@ void client_request(int client_socket) {
         send_page(client_socket, "login.html");
         return;
     } else if (strstr(request, "Cookie:")) {
-        printf("cookie found\n");
-        char cookie[512];
-        const char *cookie_position = strstr(request, "Cookie: ");
-        int cookie_offset = 22;
-        for (int i = cookie_offset; cookie_position[i] != '\n' || cookie_position[i] == ' '; i++) {
-            printf("%c\n", cookie_position[i]);
-            cookie[i - cookie_offset] = cookie_position[i];
-        }
-        cookie[strlen(cookie)] = '\0';
-        printf("cookie %s\n", cookie);
+        
         get_cookie(client_socket, cookie);
         return;
     } else if (strstr(data, "&")) {
