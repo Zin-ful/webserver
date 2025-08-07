@@ -170,7 +170,34 @@ void send_404(int socket) {
     send_simple_response(socket, "404 Not Found", "text/html", body);
 }
 
+void send_cookie(int socket, int age, const char *data) {
+    char cookie[RESERVED];
+    snprintf(cookie, sizeof(cookie), "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/html\r\n"
+    "Set-Cookie: session_token=%s; Path=/; Max-Age=%d; HttpOnly\r\n"
+    "\r\n", data, age); 
+    write(socket, cookie, strlen(cookie));
+}
+
 // +++ request handler
+
+int find_request_type(const char* request) {
+    if (!strcmp(path, "/")) {
+        return 1; //index
+    }
+    else if (strstr(path, "/search?movies=") || strstr(path, "/search?television=")) {
+        return 2; //searching media
+    }
+    else if (strstr(path, "/television/") && !strstr(path, ".mp4") && !strstr(path, ".mkv")) {
+        return 3; //browsing directories
+    }
+    else if (strstr(path, ".mp4") || strstr(path, ".mkv")) {
+        return 4; //video streaming
+    }
+    else if (strstr(path, ".html")) {
+        return 5; //basic file serving
+    }
+}
 
 void handle_client_request(int socket) {
     printf("(CODE main) handling request\n");
@@ -192,15 +219,26 @@ void handle_client_request(int socket) {
         close(socket);
         return;
     }
+    /*
+    Before allowing user into site, verify cookie 
+    content or else redirect them to login
+    */
+    char login_for_cookie[512];
+    snprintf(login_for_cookie, sizeof(login_for_cookie), "%s&%s", username, password);
+    send_http_cookie(client_socket, 2400, login_for_cookie);
     //default to home
-    if (strcmp(path, "/") == 0) {
+    if (find_request_type(path) == 1) {
         char home_path[256];
-        snprintf(home_path, sizeof(home_path), "%s/index.html", WEBROOT);
+        if (!strstr(request, "Cookie:")) {
+            snprintf(home_path, sizeof(home_path), "%s/login.html", WEBROOT);
+        } else {
+            snprintf(home_path, sizeof(home_path), "%s/index.html", WEBROOT);
+        }
         serve_html(socket, home_path);
     }
     
     //searching
-    else if (strstr(path, "/search?movies=") || strstr(path, "/search?television=")) {
+    else if (find_request_type(path) == 2) {
         char output[BUFFER_SIZE];
         char search_term[256] = "";
         char *folder_type = strstr(path, "movies") ? "movies" : "television";
@@ -216,16 +254,16 @@ void handle_client_request(int socket) {
     }
     
     //browsing television (since it has nested directories)
-    else if (strstr(path, "/television/") && !strstr(path, ".mp4") && !strstr(path, ".mkv")) {
+    else if (find_request_type(path) == 3) {
         char dir_path[512];
-        strcpy(dir_path, path + 1); // Remove leading slash
+        strcpy(dir_path, path + 1); // remove leading slash
         char output[BUFFER_SIZE];
         build_directory_listing(dir_path, output, sizeof(output));
         send_simple_response(socket, "200 OK", "text/html", output);
     }
     
     //direct video streaming
-    else if (strstr(path, ".mp4") || strstr(path, ".mkv")) {
+    else if (find_request_type(path) == 4) {
         char video_path[512];
         strcpy(video_path, path + 1); //skip slash +1
         
@@ -238,7 +276,7 @@ void handle_client_request(int socket) {
     }
     
     //html files
-    else if (strstr(path, ".html")) {
+    else if (find_request_type(path) == 5) {
         char file_path[512];
         snprintf(file_path, sizeof(file_path), "%s%s", WEBROOT, path);
         serve_html(socket, file_path);

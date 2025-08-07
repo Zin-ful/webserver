@@ -55,7 +55,18 @@ int main() {
 
 /*
 Basic HTTP functions to speed up coding & readability
+
 */
+
+void send_http_cookie(int client_socket, int age, const char *data) {
+    char header[RESERVED];
+    snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/html\r\n"
+    "Set-Cookie: session_token=%s; Path=/; Max-Age=%d; HttpOnly\r\n"
+    "\r\n", data, age); 
+    write(client_socket, header, strlen(header));
+}
+
 void send_http_head(int client_socket) {
     const char *header = "HTTP/1.1 200 OK\r\n"
     "Content-Type: text/html\r\n\r\n";
@@ -78,12 +89,25 @@ void client_request(int client_socket) {
     }
     
     request[bytes_read] = '\0';
-
+    printf("Client request: %s\n", request);
     char method[8], data[256];
     sscanf(request, "%s %s", method, data);
     printf("Client request method & data: %s & %s\n", method, data);
-    if (strcmp(data, "/") == 0) {
+    if (strcmp(data, "/") == 0 && !strstr(request, "Cookie:")) {
         send_page(client_socket, "login.html");
+        return;
+    } else if (strstr(request, "Cookie:")) {
+        printf("cookie found\n");
+        char cookie[512];
+        const char *cookie_position = strstr(request, "Cookie: ");
+        int cookie_offset = 22;
+        for (int i = cookie_offset; cookie_position[i] != '\n' || cookie_position[i] == ' '; i++) {
+            printf("%c\n", cookie_position[i]);
+            cookie[i - cookie_offset] = cookie_position[i];
+        }
+        cookie[strlen(cookie)] = '\0';
+        printf("cookie %s\n", cookie);
+        get_cookie(client_socket, cookie);
         return;
     } else if (strstr(data, "&")) {
         get_account(client_socket, data);
@@ -91,11 +115,6 @@ void client_request(int client_socket) {
     }
     char *path = data + 1;
     send_page(client_socket, path);
-}
-
-void generate_page(int client_socket, const char *page) {
-    send_http_head(client_socket);
-    write(client_socket, page, strlen(page));
 }
 
 int send_page(int client_socket, const char *filepath) {
@@ -135,6 +154,39 @@ int check_file_exist(const char *path) {
 Account stuffs
 */
 
+void get_cookie(int client_socket, const char *data) {
+    char username[512], password[512];
+    printf("reading cookie data\n");
+    for (int i = 0; i < strlen(data); i++) {
+        if (data[i] =='&') {
+            username[i] = '\0';
+            break;
+        }
+        username[i] = data[i];
+    }
+    for (int i = 0; i < strlen(data); i++) {
+        if (data[strlen(username) + i] == '\0') {
+            password[i] = '\0';
+            break;
+        }
+        password[i] = data[strlen(username) + i + 1];
+    }
+    printf("%s\n", username);
+    printf("%s\n", password);
+
+    int acc_check = verifiy_account(username, password);
+    if (acc_check) {
+        if (acc_check == 2) {
+            send_page(client_socket, "verify.html");
+        } else {
+            send_page(client_socket, "index.html");
+        }
+    } else {
+        send_page(client_socket, "login_fail.html");
+    }
+
+}
+
 void get_account(int client_socket, char *login_info) {
     char username[128], password[128];
     //check whether to create or login at login_info
@@ -172,6 +224,9 @@ void get_account(int client_socket, char *login_info) {
         if (!is_verified) {
             send_page(client_socket, "login_fail.html");
         } else if (is_verified == 1) {
+            char login_for_cookie[512];
+            snprintf(login_for_cookie, sizeof(login_for_cookie), "%s&%s", username, password);
+            send_http_cookie(client_socket, 2400, login_for_cookie);
             send_page(client_socket, "index.html");
         } else if (is_verified == 2) {
             send_page(client_socket, "verify.html");
@@ -234,7 +289,7 @@ int verifiy_account(const char *username, const char *password) {
         }
     }
     fclose(file);
-    if (strcmp(username, vname) == 0 && strcmp(password, vpass) == 0) {
+    if (strstr(username, vname) && strstr(password, vpass)) {
         printf("account exists: %s\n", verified);
         if (!strcmp(verified, "0")) {
             printf("account not verified\n");
@@ -247,10 +302,14 @@ int verifiy_account(const char *username, const char *password) {
         }
     } else {
         printf("bad password\n");
+        printf("%s\n", username);
+        printf("%s\n", vname);
+        printf("%s\n", password);
+        printf("%s\n", vpass);
+
         return 0;
     }
 }
-
 
 
 
