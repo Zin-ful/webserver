@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Player</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+        .header {
+            margin-bottom: 20px;
+        }
+        .header a {
+            color: powderblue;
+            text-decoration: none;
+        }
+        .header h2 {
+            margin: 0;
+        }
+        .video-info {
+            margin-bottom: 10px;
+        }
+        video {
+            width: 100%;
+            max-width: 1280px;
+            height: auto;
+            background-color: #222;
+        }
+        .error {
+            color: #ff6b6b;
+            padding: 20px;
+            background-color: #333;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/"><h2>Home</h2></a>
+        </div>
+        
+        <div id="video-container">
+            <!-- Video will be loaded here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        function getVideoFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const videoPath = urlParams.get('video');
+            return videoPath;
+        }
+
+        function loadVideo() {
+            const videoPath = getVideoFromURL();
+            const container = document.getElementById('video-container');
+            
+            if (!videoPath) {
+                container.innerHTML = '<div class="error"><h2>Error: No video specified</h2><p>Please provide a video parameter in the URL.</p></div>';
+                return;
+            }
+
+            // Extract filename for display
+            const videoName = videoPath.split('/').pop().replace(/\.(mp4|webm)$/i, '').replace(/_/g, ' ');
+            
+            container.innerHTML = `
+                <div class="video-info">
+                    <p>You are watching: <strong>${videoName}</strong></p>
+                </div>
+                <video width="1280" height="720" controls>
+                    <source src="${videoPath}" type="video/mp4">
+                    <source src="${videoPath}" type="video/webm">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+        }
+
+        // Load video when page loads
+        window.addEventListener('load', loadVideo);
+    </script>
+</body>
+</html>
