@@ -18,7 +18,7 @@ void get_cookie(int client_socket, const char *request, char *username, char *pa
     printf("cookie found\n");
     const char *cookie_position = strstr(request, "Cookie: ");
     int cookie_offset = 22;
-    for (int i = cookie_offset; cookie_position[i] != '\n' || cookie_position[i] == ' '; i++) {
+    for (int i = cookie_offset; cookie_position[i] != '\n' && cookie_position[i] != ' '; i++) {
         printf("%c\n", cookie_position[i]);
         cookie[i - cookie_offset] = cookie_position[i];
     }
@@ -41,6 +41,16 @@ void get_cookie(int client_socket, const char *request, char *username, char *pa
     }
     printf("username from cookie: %s\n", username);
     printf("password from cookie: %s\n", password);
+}
+
+int check_account_location(const char *request) {
+    if (!strstr(request, "/login?") && strstr(request, "login.html")) {
+        return 1;
+    } else if (!strstr(request, "/create?") && strstr(request, "create.html")){
+        return 2;
+    } else {
+        return 0;
+    }
 }
 
 int check_account_action(const char *request) {
