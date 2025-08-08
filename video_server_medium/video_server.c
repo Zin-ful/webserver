@@ -429,11 +429,46 @@ void serve_video_player(int socket, char *video_path) {
 }
 
 // ========================= USER SYSTEM =========================
-void extract_video(int socket, const char *filepath, const char *username, const char *video_path) {
-    FILE *file = fopen(filepath, "rb");
+
+void log_user_watched(const char *username, const char *path) {
+    char user_path[512];
+    snprintf(user_path, sizeof(user_path), "users/%s_just_watched.conf", username);
+    FILE *file = fopen(path, "w");
     if (!file) {
         perror("err opening file");
         return;
     }
+    fprintf(file, "%s", path);
+    fclose(file);
+}
+
+
+void send_user_page(int socket, const char *filepath, const char *username) {
+    FILE *index_file = fopen(filepath, "r");
+    if (!index_file) {
+        perror("err opening index_file");
+        return;
+    }
+    char index[2048];
+    fgets(index, sizeof(index), index_file);
+    fclose(index_file);
     
+    char user_path[512], user_page[BUFFER_SIZE], video_path_clean[512], video_path[512];
+    snprintf(user_path, sizeof(user_path), "users/%s_just_watched.conf", username);
+    FILE *file = fopen(user_path, "r");
+    if (!file) {
+        perror("err opening file");
+        char *video_path = "no videos watched yet";
+    } else {
+        strcpy(video_path_clean, video_path);
+        char *dot = strrchr(video_path_clean, '.'); //remove extension
+        if (dot) *dot = '\0';
+        simple_replace(video_path_clean, "_", " "); //clean "_"
+        fgets(video_path, sizeof(video_path), file);
+        fclose(file);
+    }
+    
+
+    snprintf(user_page, sizeof(user_page), index, username, video_path, video_path_clean);
+    send_simple_response(socket, "200 OK", "text/html", user_page);
 }
