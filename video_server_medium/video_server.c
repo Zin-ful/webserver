@@ -222,10 +222,10 @@ void handle_client_request(int socket) {
     */
 
     //login system
+    char login_path[1024], username[1024], password[1024];
     printf("(CODE cc_0) beginning cookie check..\n");
     if (!check_cookie(request)) {
         printf("(CODE cc_1) cookie not found\n");
-        char login_path[1024], username[1024], password[1024];
         if (check_account_action(request) == 1) {
             printf("(CODE acc_0) attempting login\n");
             get_account(socket, path, username, password);
@@ -243,7 +243,8 @@ void handle_client_request(int socket) {
                 send_cookie(socket, 2400, login_for_cookie);
                 close(socket);
                 snprintf(login_path, sizeof(login_path), "%s/index.html", WEBROOT);
-                serve_html(socket, login_path);
+                send_user_page(socket, login_path, username);
+                close(socket);
                 return;
             } else if (is_verified == 2) {
                 printf("(CODE acc_5) user needs to be verified\n");
@@ -275,7 +276,6 @@ void handle_client_request(int socket) {
         }
     } else {
         printf("(CODE cc_2) cookie found\n");
-        char login_path[1024], username[1024], password[1024];
         get_cookie(socket, request, username, password);
         int is_verified = verifiy_account(username, password);
         if (!is_verified) {
@@ -300,7 +300,7 @@ void handle_client_request(int socket) {
     if (find_request_type(path) == 1) {
         char home_path[1024];
         snprintf(home_path, sizeof(home_path), "%s/index.html", WEBROOT);
-        serve_html(socket, home_path);
+        send_user_page(socket, home_path, username);
     //searching
     } else if (find_request_type(path) == 2) {
         char output[BUFFER_SIZE];
@@ -326,7 +326,7 @@ void handle_client_request(int socket) {
     } else if (find_request_type(path) == 4) {
         char video_path[1024];
         strcpy(video_path, path + 1); //skip slash +1
-        
+        log_user_watched(username, video_path);
         //check if browser is requesting video stream or player page
         if (strstr(request, "Accept: text/html")) {
             serve_video_player(socket, path);
@@ -433,7 +433,7 @@ void serve_video_player(int socket, char *video_path) {
 void log_user_watched(const char *username, const char *path) {
     char user_path[512];
     snprintf(user_path, sizeof(user_path), "users/%s_just_watched.conf", username);
-    FILE *file = fopen(path, "w");
+    FILE *file = fopen(user_path, "w");
     if (!file) {
         perror("err opening file");
         return;
@@ -444,13 +444,15 @@ void log_user_watched(const char *username, const char *path) {
 
 
 void send_user_page(int socket, const char *filepath, const char *username) {
+    printf("(CODE usr_0) attempting to send custom user page\n");
     FILE *index_file = fopen(filepath, "r");
     if (!index_file) {
-        perror("err opening index_file");
+        perror("err opening index file");
         return;
     }
-    char index[2048];
-    fgets(index, sizeof(index), index_file);
+    char index[BUFFER_SIZE + 1];
+    size_t bytes_read = fread(index, 1, BUFFER_SIZE + 1, index_file);
+    index[bytes_read] = '\0';
     fclose(index_file);
     
     char user_path[512], user_page[BUFFER_SIZE], video_path_clean[512], video_path[512];
@@ -458,17 +460,23 @@ void send_user_page(int socket, const char *filepath, const char *username) {
     FILE *file = fopen(user_path, "r");
     if (!file) {
         perror("err opening file");
-        char *video_path = "no videos watched yet";
+        printf("(CODE usr_1) no videos watched\n");
+        strcpy(video_path, "index.html");
+        strcpy(video_path_clean, "no videos watched yet");
+        printf("%s %s\n", video_path, video_path_clean);
     } else {
+        printf("(CODE usr_2) videos watched file found\n");
+        fgets(video_path, sizeof(video_path), file);
         strcpy(video_path_clean, video_path);
         char *dot = strrchr(video_path_clean, '.'); //remove extension
         if (dot) *dot = '\0';
+        //if (strstr())
         simple_replace(video_path_clean, "_", " "); //clean "_"
-        fgets(video_path, sizeof(video_path), file);
+        dstrip(video_path_clean, "movies/", 1);
         fclose(file);
     }
-    
-
+    printf("(CODE usr_3) gathering user data:\nindex: %s\nusername: %s\nvideo_path: %s\nvideo_path_clean: %s\n", index, username, video_path, video_path_clean);
     snprintf(user_page, sizeof(user_page), index, username, video_path, video_path_clean);
+    printf("(CODE usr_4) sending custom user page:\n%s\n", user_page);
     send_simple_response(socket, "200 OK", "text/html", user_page);
 }
