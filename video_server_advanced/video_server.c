@@ -1,4 +1,3 @@
-//SIMPLIFIED VIDEO STREAMING WEBSERVER
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -163,7 +162,7 @@ void send_simple_response(int socket, char *status, char *content_type, char *bo
 void send_404(int socket) {
     printf("(CODE utils_2) 404 occured\n");
     char *body = "<html><body style='background-color:black;color:white;'>"
-                 "<h1>404 - Video Not Found</h1></body></html>";
+                 "<h1>404 - File Not Found</h1></body></html>";
     send_simple_response(socket, "404 Not Found", "text/html", body);
 }
 

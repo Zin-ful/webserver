@@ -1,10 +1,7 @@
-# Makefile for Video Streaming Server
-
-# Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -O2 -pthread
 TARGET = video_server
-SOURCES = video_server.c video_index.c strops.c login.c
+SOURCES = video_server.c strops.c
 OBJECTS = $(SOURCES:.c=.o)
 
 # Default target

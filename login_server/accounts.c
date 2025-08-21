@@ -98,7 +98,7 @@ void client_request(int client_socket) {
         return;
     } else if (strstr(request, "Cookie:")) {
         
-        get_cookie(client_socket, cookie);
+        get_cookie(client_socket, request);
         return;
     } else if (strstr(data, "&")) {
         get_account(client_socket, data);

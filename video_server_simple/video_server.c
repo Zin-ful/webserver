@@ -1,4 +1,3 @@
-//SIMPLIFIED VIDEO STREAMING WEBSERVER
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +8,6 @@
 #include <signal.h>
 #include "video_index.h"
 #include "strops.h"
-#include "login.h"
 #define PORT 8080
 #define BUFFER_SIZE 8192
 #define WEBROOT "./main_pages"
@@ -166,17 +164,8 @@ void send_simple_response(int socket, char *status, char *content_type, char *bo
 void send_404(int socket) {
     printf("(CODE utils_2) 404 occured\n");
     char *body = "<html><body style='background-color:black;color:white;'>"
-                 "<h1>404 - Video Not Found</h1></body></html>";
+                 "<h1>404 - File Not Found</h1></body></html>";
     send_simple_response(socket, "404 Not Found", "text/html", body);
-}
-
-void send_cookie(int socket, int age, const char *data) {
-    char cookie[BUFFER_SIZE];
-    snprintf(cookie, sizeof(cookie), "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html\r\n"
-    "Set-Cookie: session_token=%s; Path=/; Max-Age=%d; HttpOnly\r\n"
-    "\r\n", data, age); 
-    write(socket, cookie, strlen(cookie));
 }
 
 // +++ request handler
@@ -218,85 +207,6 @@ void handle_client_request(int socket) {
         close(socket);
         return;
     }
-    printf("%s\n", request);
-    /*
-    Before allowing user into site, verify cookie 
-    content or else redirect them to login
-    */
-    printf("(CODE cc_0) beginning cookie check..\n");
-    if (!check_cookie(request)) {
-        printf("(CODE cc_1) cookie not found\n");
-        char login_path[1024], username[1024], password[1024];
-        if (check_account_action(request) == 1) {
-            printf("(CODE acc_0) attempting login\n");
-            get_account(socket, path, username, password);
-            int is_verified = verifiy_account(username, password);
-            if (!is_verified) {
-                printf("(CODE acc_3) user not verified\n");
-                snprintf(login_path, sizeof(login_path), "%s/login_failed.html", WEBROOT);
-                serve_html(socket, login_path);
-                close(socket);
-                return;
-            } else if (is_verified == 1) {
-                printf("(CODE acc_4) user is verified\n");
-                char login_for_cookie[1024];
-                snprintf(login_for_cookie, sizeof(login_for_cookie), "%s&%s", username, password);
-                send_cookie(socket, 2400, login_for_cookie);
-                close(socket);
-                snprintf(login_path, sizeof(login_path), "%s/index.html", WEBROOT);
-                serve_html(socket, login_path);
-                return;
-            } else if (is_verified == 2) {
-                printf("(CODE acc_5) user needs to be verified\n");
-                snprintf(login_path, sizeof(login_path), "%s/verify.html", WEBROOT);
-                serve_html(socket, login_path);
-                close(socket);
-                return;
-            }
-        } else if (check_account_action(request) == 2) {
-            printf("(CODE acc_1) attempting account creation\n");
-            get_account(socket, path, username, password);
-            create_account(username, password);
-            snprintf(login_path, sizeof(login_path), "%s/verify.html", WEBROOT);
-            serve_html(socket, login_path);
-            close(socket);
-            return;
-        } else if (!check_account_action(request)){
-            printf("(CODE acc_2) basic request\n");
-            if (check_account_location(request) == 2) {
-                snprintf(login_path, sizeof(login_path), "%s/create.html", WEBROOT);
-            } else {
-                snprintf(login_path, sizeof(login_path), "%s/login.html", WEBROOT);
-            }
-            serve_html(socket, login_path);
-            close(socket);
-            return;
-        } else {
-            send_404(socket);
-        }
-    } else {
-        printf("(CODE cc_2) cookie found\n");
-        char login_path[1024], username[1024], password[1024];
-        get_cookie(socket, request, username, password);
-        int is_verified = verifiy_account(username, password);
-        if (!is_verified) {
-            printf("(CODE acc_3) user not verified\n");
-            snprintf(login_path, sizeof(login_path), "%s/login_failed.html", WEBROOT);
-            serve_html(socket, login_path);
-            close(socket);
-            return;
-        } else if (is_verified == 1) {
-            printf("(CODE acc_4) user is verified\n");
-            
-        } else if (is_verified == 2) {
-            printf("(CODE acc_5) user needs to be verified\n");
-            snprintf(login_path, sizeof(login_path), "%s/verify.html", WEBROOT);
-            serve_html(socket, login_path);
-            close(socket);
-            return;
-        }
-    }
-            
     //default to home
     if (find_request_type(path) == 1) {
         char home_path[1024];
@@ -428,6 +338,3 @@ void serve_video_player(int socket, char *video_path) {
     
     send_simple_response(socket, "200 OK", "text/html", player_html);
 }
-
-// ========================= LOGIN SYSTEM =========================
-// will be importing from a login system file

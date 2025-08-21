@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<body style="background-color:black;">
+    <h1 style="color:white;">Welcome</h1>
+    <h2 style="color:white;"> Example page </h2>
+    <p style="color:white;"> This server also handles nested directories, html, text, and markdown (md) files ONLY.</p>
+    <p></p>
+    <p style="color:white;">Check out the <a href="source_code.html">source code</a> for the server!</p>
+    <p></p>
+    <p style="color:white;">Check out a free book in <a href="book/text/test.txt">text</a>, <a href="books/markdown/test.md">markdown</a>, and <a href="books/html/test.html">html</a> if you want to host a library</p>
+    <p style="color:white;">WARNING! You <b>need</b> to put document files in /book. The server is made to be efficient, so normal files are served with fread (in chunks)</p>
+    <p style="color:white;">which can split bytes for single characters allowing encoding errors. Basically it wont display right, so keep documents in books (reads in files binary to avoid this)</p>
+
+</body>
+</html>

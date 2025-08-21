@@ -1,4 +1,3 @@
-//SIMPLIFIED VIDEO STREAMING WEBSERVER
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,11 +6,9 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
-#include "video_index.h"
 #include "strops.h"
-#include "login.h"
 #define PORT 8080
-#define BUFFER_SIZE 8192
+#define BUFFER_SIZE 16384
 #define WEBROOT "./main_pages"
 #define MAX_THREADS 20
 
@@ -25,6 +22,8 @@ typedef struct {
 
 client_request *queue_head = NULL;
 client_request *queue_tail = NULL;
+
+const char* get_mime_type(const char *path);
 
 // ========================= MAIN SERVER =========================
 
@@ -126,9 +125,6 @@ void start_threads() {
     printf("(CODE init1) started %d worker threads\n", MAX_THREADS);
 }
 
-
-
-
 // ========================= HTML FILE SERVING =========================
 
 void serve_html(int socket, char *file_path) {
@@ -146,6 +142,36 @@ void serve_html(int socket, char *file_path) {
     char buffer[BUFFER_SIZE];
     while (fgets(buffer, sizeof(buffer), file)) {
         send(socket, buffer, strlen(buffer), 0);
+    }
+    fclose(file);
+}
+
+void serve_binary(int socket, char *file_path) {
+    printf("(CODE bin_1) sending binary file: %s\n", file_path);
+
+    FILE *file = fopen(file_path, "rb");
+    if (!file) {
+        send_404(socket);
+        return;
+    }
+    
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);
+
+    char headers[1024];
+    
+    sprintf(headers, "HTTP/1.1 200 OK\r\n"
+    "Content-Type: %s; charset=utf-8\r\n"
+    "Content-Length: %ld\r\n"
+    "Connection: close\r\n\r\n", get_mime_type(file_path), file_size);
+    send(socket, headers, strlen(headers), 0);
+    
+    char buffer[BUFFER_SIZE];
+    size_t bytes_read;
+
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        send(socket, buffer, bytes_read, 0);
     }
     fclose(file);
 }
@@ -170,32 +196,17 @@ void send_404(int socket) {
     send_simple_response(socket, "404 Not Found", "text/html", body);
 }
 
-void send_cookie(int socket, int age, const char *data) {
-    char cookie[BUFFER_SIZE];
-    snprintf(cookie, sizeof(cookie), "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html\r\n"
-    "Set-Cookie: session_token=%s; Path=/; Max-Age=%d; HttpOnly\r\n"
-    "\r\n", data, age); 
-    write(socket, cookie, strlen(cookie));
-}
-
 // +++ request handler
 
 int find_request_type(const char* request) {
     if (!strcmp(request, "/")) {
         return 1; //index
-    }
-    else if (strstr(request, "/search?movies=") || strstr(request, "/search?television=")) {
-        return 2; //searching media
-    }
-    else if (strstr(request, "/television/") && !strstr(request, ".mp4") && !strstr(request, ".mkv")) {
-        return 3; //browsing directories
-    }
-    else if (strstr(request, ".mp4") || strstr(request, ".mkv")) {
-        return 4; //video streaming
-    }
-    else if (strstr(request, ".html")) {
-        return 5; //basic file serving
+    } else if (strstr(request, ".html")) {
+        return 2; //basic file serving
+    }else if (strstr(request, ".txt") || strstr(request, ".md")) {
+        return 3;
+    } else {
+        return 0;
     }
 }
 
@@ -218,49 +229,19 @@ void handle_client_request(int socket) {
         close(socket);
         return;
     }
-    //default to home
+    printf("%s\n", request);
     if (find_request_type(path) == 1) {
-        char home_path[1024];
-        snprintf(home_path, sizeof(home_path), "%s/index.html", WEBROOT);
-        serve_html(socket, home_path);
-    //searching
+        char file_path[1024];
+        snprintf(file_path, sizeof(file_path), "%s/index.html", WEBROOT);
+        serve_html(socket, file_path);
     } else if (find_request_type(path) == 2) {
-        char output[BUFFER_SIZE];
-        char search_term[1024] = "";
-        char *folder_type = strstr(path, "movies") ? "movies" : "television";
-        char *equals = strchr(path, '=');
-        if (equals) {
-            strcpy(search_term, equals + 1);
-            char *amp = strchr(search_term, '&');
-            if (amp) *amp = '\0';
-        }
-        
-        build_video_index(search_term, folder_type, output, sizeof(output));
-        send_simple_response(socket, "200 OK", "text/html", output);    
-    //browsing television (since it has nested directories)
-    } else if (find_request_type(path) == 3) {
-        char dir_path[1024];
-        strcpy(dir_path, path + 1); // remove leading slash
-        char output[BUFFER_SIZE];
-        build_directory_listing(dir_path, output, sizeof(output));
-        send_simple_response(socket, "200 OK", "text/html", output);
-    //direct video streaming
-    } else if (find_request_type(path) == 4) {
-        char video_path[1024];
-        strcpy(video_path, path + 1); //skip slash +1
-        
-        //check if browser is requesting video stream or player page
-        if (strstr(request, "Accept: text/html")) {
-            serve_video_player(socket, path);
-        } else {
-            stream_video(socket, video_path, request);
-        }
-    //html files
-    } else if (find_request_type(path) == 5) {
         char file_path[1024];
         snprintf(file_path, sizeof(file_path), "%s%s", WEBROOT, path);
-        serve_html(socket, file_path);    
-    //everything else is 404
+        serve_html(socket, file_path);
+    } else if (find_request_type(path) == 3) {
+        char file_path[1024];
+        snprintf(file_path, sizeof(file_path), "%s%s", WEBROOT, path);
+        serve_binary(socket, file_path);
     } else {
         send_404(socket);
     }
@@ -268,84 +249,16 @@ void handle_client_request(int socket) {
     close(socket);
 }
 
-// ========================= VIDEO STREAMING =========================
-void stream_video(int socket, char *video_path, char *headers) {
-    printf("(CODE vid0) preparing to stream: %s\n", video_path);
-    FILE *file = fopen(video_path, "rb");
-    if (!file) {
-        send_404(socket);
-        return;
-    }
+// ========================= FILE HELPERS =========================
 
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    //range request for video seeking
-    long start = 0, end = file_size - 1;
-    char *range = strstr(headers, "Range: bytes=");
-    if (range) {
-        range += 13; //skip "Range: bytes="
-        sscanf(range, "%ld-%ld", &start, &end);
-        if (end <= 0 || end >= file_size) end = file_size - 1;
-        fseek(file, start, SEEK_SET);
-    }
-
-    //headers
-    char response[1024];
-    char *content_type = strstr(video_path, ".mkv") ? "video/x-matroska" : "video/mp4";
-    
-    if (range) {
-        snprintf(response, sizeof(response),
-                 "HTTP/1.1 206 Partial Content\r\n"
-                 "Content-Type: %s\r\n"
-                 "Accept-Ranges: bytes\r\n"
-                 "Content-Range: bytes %ld-%ld/%ld\r\n"
-                 "Content-Length: %ld\r\n\r\n",
-                 content_type, start, end, file_size, (end - start + 1));
+const char* get_mime_type(const char *path) {
+    if (strstr(path, ".md")) {
+        return "text/markdown";
+    } else if (strstr(path, ".txt")) {
+        return "text/plain";
+    } else if (strstr(path, ".html")) {
+        return "text/html";
     } else {
-        snprintf(response, sizeof(response),
-                 "HTTP/1.1 200 OK\r\n"
-                 "Content-Type: %s\r\n"
-                 "Accept-Ranges: bytes\r\n"
-                 "Content-Length: %ld\r\n\r\n",
-                 content_type, file_size);
+        return "text/plain";
     }
-    send(socket, response, strlen(response), 0);
-
-    //actually streaming
-    printf("(CODE init_vid) starting stream\n");
-    char buffer[BUFFER_SIZE];
-    long bytes_left = end - start + 1;
-    while (bytes_left > 0) {
-        int chunk_size = (bytes_left < BUFFER_SIZE) ? bytes_left : BUFFER_SIZE;
-        int bytes_read = fread(buffer, 1, chunk_size, file);
-        if (bytes_read <= 0) break;
-        
-        if (send(socket, buffer, bytes_read, MSG_NOSIGNAL) <= 0) break;
-        bytes_left -= bytes_read;
-    }
-    fclose(file);
-}
-
-// +++ video player html page
-
-void serve_video_player(int socket, char *video_path) {
-    printf("(CODE vid1) using video player\n");
-    char player_html[2048];
-    char *filename = strrchr(video_path, '/');
-    if (filename) filename++; else filename = video_path;
-    
-    snprintf(player_html, sizeof(player_html),
-             "<!DOCTYPE html>\n"
-             "<html>\n<head><title>Video Player</title></head>\n"
-             "<body style='background-color:black; color:white; text-align:center;'>\n"
-             "<h2>Now Playing: %s</h2>\n"
-             "<a href='/' style='color:powderblue;'>← Home</a><br><br>\n"
-             "<video width='1280' height='720' controls>\n"
-             "<source src='%s' type='video/mp4'>\n"
-             "</video>\n</body></html>",
-             filename, video_path);
-    
-    send_simple_response(socket, "200 OK", "text/html", player_html);
 }
